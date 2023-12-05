@@ -1,5 +1,5 @@
 from .base import BaseSampler
-from .points import RandomPointSampler
+from .points import RandomPointSampler, ClickerSampler
 
 __all__ = ["sampler_register", "BaseSampler"]
 
