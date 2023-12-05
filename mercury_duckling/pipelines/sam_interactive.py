@@ -31,13 +31,13 @@ class SamInteractiveTest(InteractiveTest):
             thermal_type=THERMAL_TYPE.FLIR,
         )
         # Log dataset information
-        self.logger.log_parameters(
-            {
-                "transform": self._get_attribute_name(transform),
-                "both_transform": self._get_attribute_name(both_transform),
-                "target_transform": self._get_attribute_name(target_transform),
-            }
-        )
+        # self.logger.log_parameters(
+        #     {
+        #         "transform": self._get_attribute_name(transform),
+        #         "both_transform": self._get_attribute_name(both_transform),
+        #         "target_transform": self._get_attribute_name(target_transform),
+        #     }
+        # )
 
     def _setup_model(self):
         self.__sam_checkpoint = self._config["model"]["checkpoint"]
@@ -68,6 +68,7 @@ class SamInteractiveTest(InteractiveTest):
         assert id is not None, "id should not be None."
         if id != self._current_id:
             self.model.set_image(inputs)
+            self._current_id = id
 
         prompts = self.prepare_prompts(prompts)
         masks, scores, logits = self.model.predict(
@@ -76,7 +77,7 @@ class SamInteractiveTest(InteractiveTest):
             multimask_output=False
         )
 
-        self.logger.log_metric("sam_pred_iou", scores[0])
+        # self.logger.log_metric("sam_pred_iou", scores[0])
         # Logic for returning the best mask
         self._prev_mask = logits
         return masks[0], logits

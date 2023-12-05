@@ -6,6 +6,7 @@ __all__ = ["sampler_register", "BaseSampler"]
 sampler_register = {
     "points":{
         "random": RandomPointSampler,
+        "clicker": ClickerSampler,
     },
     "bbox": {
         "base": BaseSampler,

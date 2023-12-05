@@ -18,7 +18,6 @@ class UnetInteractiveTest(InteractiveTest):
     def __init__(self, config) -> None:
         super().__init__(config)
         self._current_id = None
-        self._threshold = self._config["model"]["threshold"]
 
     def _set_dataset(self):
         transform = Compose(
@@ -42,13 +41,13 @@ class UnetInteractiveTest(InteractiveTest):
             thermal_type=THERMAL_TYPE.FLIR,
         )
         # Log dataset information
-        self.logger.log_parameters(
-            {
-                "transform": self._get_attribute_name(transform),
-                "both_transform": self._get_attribute_name(both_transform),
-                "target_transform": self._get_attribute_name(target_transform),
-            }
-        )
+        # self.logger.log_parameters(
+        #     {
+        #         "transform": self._get_attribute_name(transform),
+        #         "both_transform": self._get_attribute_name(both_transform),
+        #         "target_transform": self._get_attribute_name(target_transform),
+        #     }
+        # )
 
     def _setup_model(self):
         class InterUnetArgs:
@@ -61,6 +60,7 @@ class UnetInteractiveTest(InteractiveTest):
 
         args = InterUnetArgs()
         self.model = build_model(args)
+        self.model.eval()
 
     def get_predictions(
         self,
@@ -110,7 +110,7 @@ class UnetInteractiveTest(InteractiveTest):
         alpha = remove_non_fg_connected(alpha, trimap_np[:, :, 1])
         return alpha
 
-    def prepare_promtps(prompts, trimap):
+    def prepare_promtps(self, prompts, trimap):
         for prompt in prompts:
             if prompt["type"] == "point":
                 # coords are in (y, x) format
@@ -122,12 +122,17 @@ class UnetInteractiveTest(InteractiveTest):
     def predict(self, inputs, prompts, aux, id):
         h, w, c = inputs.shape
         if id != self._current_id:
-            aux = np.zeros((h, w, 2))
+            # This model does not need to set an image. 
+            # Hence we only reset the previous mask.
+            self._current_id = id
+        
+        if aux is None:
+            aux = np.zeros((h, w))
 
         trimap = np.zeros((h, w, 2))
         trimap = self.prepare_promtps(prompts, trimap)
         alpha = self.get_predictions(inputs, trimap, aux)
-        return alpha, alpha
+        return alpha, None
 
 
 def scale_input(x: np.ndarray, scale_type) -> np.ndarray:

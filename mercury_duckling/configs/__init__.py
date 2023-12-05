@@ -1,1 +1,1 @@
-from .defaults import DEFAULT_THERMAL, DEFAULT_CONCRETE
+from .defaults import SAM_THERMAL, RITM_THERMAL, UNET_THERMAL

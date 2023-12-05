@@ -1,5 +1,6 @@
 from warnings import warn
 import numpy as np
+import torch
 from torchvision.transforms import Compose
 
 from .core import InteractiveTest
@@ -41,13 +42,13 @@ class RitmInteractiveTest(InteractiveTest):
             thermal_type=THERMAL_TYPE.FLIR,
         )
         # Log dataset information
-        self.logger.log_parameters(
-            {
-                "transform": self._get_attribute_name(transform),
-                "both_transform": self._get_attribute_name(both_transform),
-                "target_transform": self._get_attribute_name(target_transform),
-            }
-        )
+        # self.logger.log_parameters(
+        #     {
+        #         "transform": self._get_attribute_name(transform),
+        #         "both_transform": self._get_attribute_name(both_transform),
+        #         "target_transform": self._get_attribute_name(target_transform),
+        #     }
+        # )
 
     def _setup_model(self):
         model = utils.load_is_model(self._config["model"]["checkpoint"], self.device)
@@ -70,10 +71,18 @@ class RitmInteractiveTest(InteractiveTest):
 
     def predict(self, inputs, prompts, aux, id):
         assert id is not None, "id should not be None."
+        
+        h, w, c = inputs.shape
         if id != self._current_id:
             self.model.set_input_image(inputs)
+            self._current_id = id
+
+        if aux is not None:
+            aux = torch.tensor(aux).unsqueeze(0).unsqueeze(0)
+        else:
+            aux = torch.zeros((1, 1, h, w))
 
         prompts = self.prepare_prompts(prompts)
         # By default RITM will use the previous prediction saved internally.
-        masks = self.model.get_prediction(prompts)
-        return masks > self._threshold, None
+        logits = self.model.get_prediction(prompts, aux)
+        return logits > self._threshold, logits
