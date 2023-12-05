@@ -1,5 +1,6 @@
 from typing import Tuple
 import numpy as np
+from cv2 import distanceTransform, DIST_L2
 
 from .base import BaseSampler
 
@@ -13,7 +14,6 @@ class RandomPointSampler(BaseSampler):
         neg_boundary: float = 0.25,
         seed: int = 42,
     ):
-        # TODO: Add support for boundary scale for negative points.
         super().__init__(seed, neg_boundary)
         self._point_count = point_count
         self._inverse = inverse
@@ -33,6 +33,19 @@ class RandomPointSampler(BaseSampler):
         self._continue = len(self.point_choices) > 0
 
     def _sample_points(self, region, outs):
+        """
+        Sample a point from the region.
+
+        Args:
+            region (RegionProperties): The region to sample from. (see skimage.measure.regionprops)
+            outs (_type_): The output of the model from the previous iteration.
+        
+        Returns:
+            dict: A dictionary containing the sampled point.
+                  Points coordinates are in (x, y) format. 
+                  Labels are 1 for positive and 0 for negative.
+                  Type is always "point".
+        """
         point = self.point_choices.pop()
         if point:
             idx = np.random.randint(len(region.coords))
@@ -55,3 +68,82 @@ class RandomPointSampler(BaseSampler):
 
     def _sample_bboxs(self, *args, **kwargs):
         raise NotImplementedError("This sampler does not sample bboxes.")
+    
+class ClickerSampler(BaseSampler):
+    def __init__(
+        self,
+        click_limit: int = 20,
+        seed: int = 42,
+    ):
+        super().__init__(seed)
+        self._click_limit = click_limit
+
+    def _reset(self):
+        super()._reset()
+        self.click_list = []
+        self._gt_mask = None
+
+    def interact(self, mask, outs=None):
+        """
+        Base function to interact with an interactive segmentation model.
+        This function will yeild a prompt.
+
+        Args:
+            mask (np.array): ground thruth mask.
+            outs (np.array, optional): Initial prediction mask. Defaults to None.
+
+        Yields:
+            list: List of promtps for the model to use. 
+        """
+        assert type in [
+            "point",
+            "bbox",
+        ], "Invalid type. Must be one of 'point' or 'bbox'."
+
+        self._reset()
+        self._gt_mask = mask.astype(bool)
+        self.not_clicked_map = np.ones_like(self._gt_mask, dtype=np.bool)
+        self._outs = np.zeros_like(mask) if outs is None else outs.astype(bool)
+        while len(self.prompts) < self._click_limit:
+            self.prompts.append(self._sample_points(self._outs))
+            yield self.prompts
+    
+    def set_outputs(self, outs):
+        self._outs = outs.astype(bool)
+    
+    def _sample_points(self, pred_mask, padding=True):
+        fn_mask = np.logical_and(self._gt_mask, np.logical_not(pred_mask))
+        fp_mask = np.logical_and(np.logical_not(self._gt_mask), pred_mask)
+
+        if padding:
+            fn_mask = np.pad(fn_mask, ((1, 1), (1, 1)), 'constant')
+            fp_mask = np.pad(fp_mask, ((1, 1), (1, 1)), 'constant')
+
+        fn_mask_dt = distanceTransform(fn_mask.astype(np.uint8), DIST_L2, 0)
+        fp_mask_dt = distanceTransform(fp_mask.astype(np.uint8), DIST_L2, 0)
+
+        if padding:
+            fn_mask_dt = fn_mask_dt[1:-1, 1:-1]
+            fp_mask_dt = fp_mask_dt[1:-1, 1:-1]
+
+        fn_mask_dt = fn_mask_dt * self.not_clicked_map
+        fp_mask_dt = fp_mask_dt * self.not_clicked_map
+
+        fn_max_dist = np.max(fn_mask_dt)
+        fp_max_dist = np.max(fp_mask_dt)
+
+        is_positive = fn_max_dist > fp_max_dist
+        if is_positive:
+            coords_y, coords_x = np.where(fn_mask_dt == fn_max_dist)  # coords is [y, x]
+        else:
+            coords_y, coords_x = np.where(fp_mask_dt == fp_max_dist)  # coords is [y, x]
+
+        self.not_clicked_map[coords_y[0], coords_x[1]] = False
+
+        return {
+            "type": "point",
+            "coords": [coords_x[0], coords_y[0]],
+            "label": is_positive,
+        }
+
+    

@@ -18,6 +18,18 @@ class BaseSampler:
         self._continue = True
 
     def interact(self, mask, outs=None, type="point"):
+        """
+        Base function to interact with an interactive segmentation model.
+        This function will yeild a prompt.
+
+        Args:
+            mask (np.array): ground thruth mask.
+            outs (np.array, optional): Initial prediction mask. Defaults to None.
+            type (str, optional): Type of promtp to genetate. Defaults to "point".
+
+        Yields:
+            list: List of promtps for the model to use. 
+        """
         assert type in [
             "point",
             "bbox",
@@ -40,7 +52,7 @@ class BaseSampler:
         if len(self.prompts) == self._num_prompts:
             self._continue = False
 
-    def _set_outputs(self, *args, **kwargs):
+    def set_outputs(self, *args, **kwargs):
         pass
 
     def _sample_points(self, region, outs=None):
@@ -50,6 +62,7 @@ class BaseSampler:
             "coords": [region.centroid[1], region.centroid[0]],
             "label": 1,
         }
+    
     def _get_scaled_bbox(self, region):
         # bbox in (min_row, min_col, max_row, max_col) format.
         ymin, xmin, ymax, xmax = region.bbox
@@ -78,6 +91,15 @@ class BaseSampler:
 
     # From https://github.com/facebookresearch/segment-anything
     def show_points(coords, labels, ax, marker_size=150):
+        """
+        Show points on the image.
+
+        Args:
+            coords (np.array): Coordinates of the points.
+            labels (list): Labels of the points.
+            ax (matplotlib.axes.Axes): Axes to plot on. 
+            marker_size (int, optional): Marker size. Defaults to 150.
+        """
         pos_points = coords[labels == 1]
         neg_points = coords[labels == 0]
         ax.scatter(
@@ -103,6 +125,13 @@ class BaseSampler:
 
     # From https://github.com/facebookresearch/segment-anything
     def show_box(box, ax):
+        """
+        Show a bounding box on the image.
+
+        Args:
+            box (np.array): Bounding box in (xmin, ymin, xmax, ymax) format.
+            ax (matplotlib.axes.Axes): Axes to plot on.
+        """
         x0, y0 = box[0], box[1]
         w, h = box[2] - box[0], box[3] - box[1]
         ax.add_patch(
