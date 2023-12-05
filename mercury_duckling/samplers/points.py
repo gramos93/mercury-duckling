@@ -95,14 +95,9 @@ class ClickerSampler(BaseSampler):
         Yields:
             list: List of promtps for the model to use. 
         """
-        assert type in [
-            "point",
-            "bbox",
-        ], "Invalid type. Must be one of 'point' or 'bbox'."
-
         self._reset()
         self._gt_mask = mask.astype(bool)
-        self.not_clicked_map = np.ones_like(self._gt_mask, dtype=np.bool)
+        self.not_clicked_map = np.ones_like(self._gt_mask, dtype=bool)
         self._outs = np.zeros_like(mask) if outs is None else outs.astype(bool)
         while len(self.prompts) < self._click_limit:
             self.prompts.append(self._sample_points(self._outs))
@@ -138,12 +133,11 @@ class ClickerSampler(BaseSampler):
         else:
             coords_y, coords_x = np.where(fp_mask_dt == fp_max_dist)  # coords is [y, x]
 
-        self.not_clicked_map[coords_y[0], coords_x[1]] = False
+        self.not_clicked_map[coords_y[0], coords_x[0]] = False
 
         return {
             "type": "point",
             "coords": [coords_x[0], coords_y[0]],
             "label": is_positive,
         }
-
     

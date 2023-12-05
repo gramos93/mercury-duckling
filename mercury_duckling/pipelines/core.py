@@ -152,15 +152,12 @@ class InteractiveTest(IExperiment, ABC):
         inputs, targets, id = self.batch
         assert targets.shape[1] == 1, "Individual targets should be binary." 
         
-        outputs = None
         for target in targets:
+            outputs = None
+            aux = None
             for prompts in self.sampler.interact(mask=target, outs=outputs):
-                outputs, aux_outs = self.predict(inputs, prompts, id)
-                if logits := aux_outs.get("logits"):
-                    self.sampler.set_outputs(logits)
-                else:
-                    self.sampler.set_outputs(outputs)
-
+                outputs, aux = self.predict(inputs, prompts, aux, id)
+                self.sampler.set_outputs(outputs)
                 stats = get_stats(
                     outputs, target, mode="binary"
                 )

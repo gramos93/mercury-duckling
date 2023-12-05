@@ -57,8 +57,6 @@ class SamInteractiveTest(InteractiveTest):
                 sam_prompts["point_labels"].append(prompt["label"])
             elif prompt["type"] == "bbox":
                 sam_prompts["bbox"].append(prompt["coords"])
-            elif prompt["type"] == "logits":
-                sam_prompts["mask_input"].append(prompt["mask"])
             else:
                 warn(f"Ignoring invalid prompt type: {prompt['type']}.")
         
@@ -66,19 +64,19 @@ class SamInteractiveTest(InteractiveTest):
             sam_prompts[prompt] = np.array(val)
         return sam_prompts
 
-    def predict(self, inputs, prompts, id):
+    def predict(self, inputs, prompts, aux, id):
         assert id is not None, "id should not be None."
         if id != self._current_id:
             self.model.set_image(inputs)
 
         prompts = self.prepare_prompts(prompts)
-        masks, scores, logits = self.model.predict(**prompts)
+        masks, scores, logits = self.model.predict(
+            **prompts, 
+            mask_input=aux,
+            multimask_output=False
+        )
 
+        self.logger.log_metric("sam_pred_iou", scores[0])
         # Logic for returning the best mask
-        best_idx = np.argmax(scores)
-        best_mask = masks[best_idx, :, :]  # Choose the model's best mask
-        aux = {
-            "predicted_iou": scores[best_idx],
-            "logits": logits[best_idx, :, :],  # Used for subsequent predictions
-        }
-        return best_mask, aux
+        self._prev_mask = logits
+        return masks[0], logits
