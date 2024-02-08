@@ -114,7 +114,7 @@ class UnetInteractiveTest(InteractiveTest):
         for prompt in prompts:
             if prompt["type"] == "point":
                 # coords are in (y, x) format
-                trimap[*prompt["coords"][::-1], int(prompt["label"])] = 1
+                trimap[prompt["coords"][1], prompt["coords"][0], int(prompt["label"])] = 1
             else:
                 warn(f"Ignoring invalid prompt type: {prompt['type']}.")
         return trimap

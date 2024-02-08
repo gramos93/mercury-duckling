@@ -1,5 +1,7 @@
+absl-py
 accelerate
 accelerator
+albumentations
 animus @ git+https://github.com/Scitator/animus@7c80dba79d9cac87455f5bc61c8bd4110dfb26f8
 anyio
 argon2-cffi
@@ -12,6 +14,7 @@ Babel
 beautifulsoup4
 bleach
 bottle
+cachetools
 certifi
 cffi
 charset-normalizer
@@ -25,7 +28,9 @@ Cython
 debugpy
 decorator
 defusedxml
+docopt
 dulwich
+easydict
 efficientnet-pytorch
 everett
 executing
@@ -34,6 +39,10 @@ filelock
 fonttools
 fqdn
 fsspec
+google-auth
+google-auth-oauthlib
+grpcio
+guided-filter-pytorch
 huggingface-hub
 idna
 imageio
@@ -44,6 +53,7 @@ ipywidgets
 isoduration
 jedi
 Jinja2
+joblib
 json5
 jsonpointer
 jsonschema
@@ -62,6 +72,7 @@ jupyterlab-widgets
 jupyterlab_server
 kiwisolver
 lazy_loader
+Markdown
 markdown-it-py
 MarkupSafe
 matplotlib
@@ -78,6 +89,9 @@ networkx
 notebook
 notebook_shim
 numpy
+oauthlib
+opencv-contrib-python
+opencv-python-headless
 overrides
 packaging
 pandas
@@ -85,14 +99,18 @@ pandocfilters
 parso
 pexpect
 Pillow
+pipreqs
 platformdirs
 pluggy
 pretrainedmodels
 prometheus-client
 prompt-toolkit
+protobuf
 psutil
 ptyprocess
 pure-eval
+pyasn1
+pyasn1-modules
 pycocotools
 pycparser
 PyExifTool
@@ -108,17 +126,22 @@ PyYAML
 pyzmq
 qtconsole
 QtPy
+qudida
 referencing
 requests
+requests-oauthlib
 requests-toolbelt
 rfc3339-validator
 rfc3986-validator
 rich
 rpds-py
+rsa
 safetensors
 scikit-image
+scikit-learn
 scipy
 seaborn
+segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@6fdee8f2727f4506cfbbe553e23b895e27956588
 segmentation-models-pytorch @ git+https://github.com/qubvel/segmentation_models.pytorch@6db76a1106426ac5b55f39fba68168f3bccae7f8
 semantic-version
 Send2Trash
@@ -130,7 +153,10 @@ sniffio
 soupsieve
 stack-data
 sympy
+tensorboard
+tensorboard-data-server
 terminado
+threadpoolctl
 tifffile
 timm
 tinycss2
@@ -151,6 +177,9 @@ wcwidth
 webcolors
 webencodings
 websocket-client
+Werkzeug
 widgetsnbextension
 wrapt
 wurlitzer
+xlrd
+yarg
