@@ -85,9 +85,8 @@ def NOCS(ious, thresh, max_clicks=20):
     return nocs
 
 
-iou_score = (
-    lambda y_hat, y: np.logical_and(y_hat, y).sum() / np.logical_or(y_hat, y).sum()
-)
+def iou_score(y_hat, y):
+    return np.logical_and(y_hat, y).sum() / np.logical_or(y_hat, y).sum()
 
 
 def test_pipeline(pipeline):

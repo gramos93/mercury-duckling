@@ -1,0 +1,7 @@
+# Path: mercury_duckling/configs/dataset.yaml
+root: "../data/merged_dataset_delam"
+ann_file: delamination.json
+batch_size: 16
+num_workers: 4
+split: 0.75   # train, val
+seed: 42

@@ -1,0 +1,6 @@
+# Path: mercury_duckling/configs/model.yaml
+model: SAM
+checkpoint: checkpoints/sam_vit_h_4b8939.pth
+type: vit_h   # vit_s, vit_h, vit_b
+threshold: 0.5
+

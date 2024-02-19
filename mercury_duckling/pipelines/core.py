@@ -16,8 +16,6 @@ from ..samplers import sampler_register, BaseSampler
 from ..datasets.transforms import BothCompose
 from ..utils import console, console_status
 
-__all__ = ["InteractiveTest"]
-
 
 class InteractiveTest(IExperiment, ABC):
     """

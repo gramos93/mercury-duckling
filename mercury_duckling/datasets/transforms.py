@@ -1,45 +1,23 @@
 from typing import Any, List, Tuple, Optional, Union
-from random import choices
+from typing import List, Optional, Tuple, Union, Any, Dict
 from matplotlib import colormaps
 import numpy as np
 from PIL import Image
-from skimage import color
 from skimage.measure import label
 
 import torch
-from torch import Tensor, logical_not
+from torch import Tensor
 from torch.nn.functional import one_hot
 
-from torchvision.transforms import RandomCrop
-from torchvision.transforms.autoaugment import TrivialAugmentWide as TAWide, _apply_op
-from torchvision.transforms.functional import (
-    InterpolationMode,
-    resize,
-    rotate,
-    crop,
-    get_dimensions,
-    to_tensor,
-    normalize,
+from torchvision import tv_tensors
+from torchvision.utils import _log_api_usage_once
+from torchvision.transforms.v2 import InterpolationMode, Transform
+from torchvision.transforms.v2._utils import _setup_size, query_size
+from torchvision.transforms.v2.functional._misc import (
+    _register_kernel_internal,
+    _get_kernel,
 )
-
-
-class GrayToRGB(torch.nn.Module):
-    def forward(self, sample) -> Any:
-        res = sample
-        if len(sample.shape) < 3:
-            res = np.expand_dims(res, axis=2)
-            res = np.concatenate((res, res, res), axis=2)
-        return res
-
-
-class FilterOutAlphaChannel(torch.nn.Module):
-    def forward(self, img) -> Any:
-        return img[:3, :, :] if len(img.shape) == 3 and img.shape[0] > 3 else img
-
-
-class MinMaxNormalization(torch.nn.Module):
-    def forward(self, img: Tensor) -> Tensor:
-        return (img - img.min()) / (img.max() - img.min())
+from torchvision.transforms.v2.functional import resize, pad
 
 
 class Blobify(torch.nn.Module):
@@ -103,59 +81,6 @@ class Colormap(torch.nn.Module):
         return colored[..., :3]
 
 
-class BothRandomRotate(torch.nn.Module):
-    def __init__(self, angles: Tuple[int], weights: Tuple[int] = None):
-        super().__init__()
-        self.angles = angles
-        self.weights = weights if not weights else [1] * len(angles)
-
-    def forward(self, img, target):
-        ang = choices(self.angles, weights=self.weights, k=1)[0]
-        return rotate(img, ang), rotate(target, ang)
-
-
-class BothRandomCrop(torch.nn.Module):
-    def __init__(self, crop_size):
-        super().__init__()
-        self.size = crop_size
-
-    def forward(self, img, target):
-        i, j, h, w = RandomCrop.get_params(img, self.size)
-        return crop(img, i, j, h, w), crop(target, i, j, h, w)
-
-
-class BothToTensor(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, img, target):
-        return to_tensor(img), target
-
-
-class BothNormalize(torch.nn.Module):
-    def __init__(self, mean, std):
-        super().__init__()
-        self.mean = mean
-        self.std = std
-
-    def forward(self, img, target):
-        return normalize(img, self.mean, self.std), target
-
-
-class BothCompose:
-    def __init__(self, transforms):
-        self.transforms = transforms
-
-    def __next__(self):
-        for t in self.transforms:
-            yield t
-
-    def __call__(self, image, target):
-        for t in self.transforms:
-            image, target = t(image, target)
-        return image, target
-
-
 class ImageResizeByCoefficient(torch.nn.Module):
     def __init__(
         self,
@@ -182,115 +107,89 @@ class ImageResizeByCoefficient(torch.nn.Module):
         return np.asarray(res)
 
 
-class ToGrayscale(torch.nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
+def minmax_normalize(
+    inpt: torch.Tensor,
+) -> torch.Tensor:
+    """See :class:`~torchvision.transforms.v2.Normalize` for details."""
+    if torch.jit.is_scripting():
+        return minmax_scale_image(inpt)
 
-    def forward(self, img):
-        return color.rgb2gray(img) if len(img.shape) > 2 else img
+    _log_api_usage_once(minmax_normalize)
 
-
-class TargetDilation(torch.nn.Module):
-    def __init__(self, factor, channel: int = 1) -> None:
-        super().__init__()
-        self.kernel = torch.ones(
-            (1, 1, factor, factor), requires_grad=False, dtype=torch.uint8
-        )
-        self.channel = channel
-
-    def forward(self, img: Image):
-        if img.size(0) == 2:
-            img[1, ...] = torch.clamp(
-                torch.nn.functional.conv2d(
-                    img[1:, ...], self.kernel.to(img.dtype), padding="same"
-                ),
-                0,
-                1,
-            )
-            img[0, ...] = logical_not(img[1:, ...])
-            return img
-        elif img.size(0) == 1:
-            return torch.clamp(
-                torch.nn.functional.conv2d(
-                    img, self.kernel.to(img.dtype), padding="same"
-                ),
-                0,
-                1,
-            )
-        else:
-            raise NotImplementedError(
-                "Dilation not implemented for targets with more than 2 channels."
-            )
+    kernel = _get_kernel(minmax_normalize, type(inpt))
+    return kernel(inpt)
 
 
-class TrivialAugmentWide(TAWide):
-    """Dataset-independent data-augmentation with TrivialAugment Wide, as described in
-    `"TrivialAugment: Tuning-free Yet State-of-the-Art Data Augmentation" <https://arxiv.org/abs/2103.10158>`_.
-    If the image is torch Tensor, it should be of type torch.uint8, and it is expected
-    to have [..., 1 or 3, H, W] shape, where ... means an arbitrary number of leading dimensions.
-    If img is PIL Image, it is expected to be in mode "L" or "RGB".
+@_register_kernel_internal(minmax_normalize, torch.Tensor)
+@_register_kernel_internal(minmax_normalize, tv_tensors.Image)
+def minmax_scale_image(inpt: torch.Tensor) -> torch.Tensor:
+    return inpt.sub(inpt.min()).div_(inpt.max() - inpt.min())
 
-    Args:
-        num_magnitude_bins (int): The number of different magnitude values.
-        interpolation (InterpolationMode): Desired interpolation enum defined by
-            :class:`torchvision.transforms.InterpolationMode`. Default is ``InterpolationMode.NEAREST``.
-            If input is Tensor, only ``InterpolationMode.NEAREST``, ``InterpolationMode.BILINEAR`` are supported.
-        fill (sequence or number, optional): Pixel fill value for the area outside the transformed
-            image. If given a number, the value is used for all bands respectively.
+
+class MinMaxNormalization(Transform):
+    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+        return self._call_kernel(minmax_normalize, inpt)
+
+
+class ResizeLongestSideAndPad(Transform):
+    """
+    Resizes images to the longest side 'target_length', as well as provides
+    methods for resizing coordinates and boxes. Provides methods for
+    transforming both numpy array and batched torch tensors.
+
+    Code from segmenta-anything META
     """
 
     def __init__(
         self,
-        num_magnitude_bins: int = 31,
-        interpolation: InterpolationMode = InterpolationMode.BILINEAR,
-        fill: Optional[List[float]] = None,
+        target_size: Tuple[int, int],
+        interpolation: Union[InterpolationMode, int] = InterpolationMode.BILINEAR,
+        antialias: Optional[bool] = True,
     ) -> None:
-        super().__init__(num_magnitude_bins, interpolation, fill)
-
-    def forward(self, img: Tensor, target: Tensor) -> Tensor:
-        """
-            img (PIL Image or Tensor): Image to be transformed.
-
-        Returns:
-            PIL Image or Tensor: Transformed image.
-        """
-        fill = self.fill
-        channels, height, width = get_dimensions(img)
-        if isinstance(img, Tensor):
-            if isinstance(fill, (int, float)):
-                fill = [float(fill)] * channels
-            elif fill is not None:
-                fill = [float(f) for f in fill]
-
-        op_meta = self._augmentation_space(self.num_magnitude_bins)
-        op_index = int(torch.randint(len(op_meta), (1,)).item())
-        op_name = list(op_meta.keys())[op_index]
-        magnitudes, signed = op_meta[op_name]
-        magnitude = (
-            float(
-                magnitudes[
-                    torch.randint(len(magnitudes), (1,), dtype=torch.long)
-                ].item()
-            )
-            if magnitudes.ndim > 0
-            else 0.0
+        super().__init__()
+        self.target_size = _setup_size(
+            target_size,
+            error_msg="Please provide only two dimensions (h, w) for target_size.",
         )
-        if signed and torch.randint(2, (1,)):
-            magnitude *= -1.0
+        self.interpolation = interpolation
+        self.antialias = antialias
 
-        img = _apply_op(
-            img, op_name, magnitude, interpolation=self.interpolation, fill=fill
+    def _transform(self, inpt: Any, params: Dict[str, Any]) -> torch.Tensor:
+        """
+        Expects batched images with shape BxCxHxW and float format. This
+        transformation may not exactly match apply_image. apply_image is
+        the transformation expected by the model.
+        """
+        # Expects an image in BCHW format. May not exactly match apply_image.
+        h, w = params["height"], params["width"]
+        resized_target = self._call_kernel(
+            resize,
+            inpt,
+            size=min(self.target_size),
+            max_size=max(self.target_size),
+            interpolation=self.interpolation,
+            antialias=self.antialias,
         )
-        if op_name in {
-            "ShearX",
-            "ShearY",
-            "TranslateX",
-            "TranslateY",
-            "Rotate",
-            "Invert",
-        }:
-            target = _apply_op(
-                target, op_name, magnitude, interpolation=self.interpolation, fill=fill
-            )
+        # Pad to match
+        h, w = resized_target.shape[-2:]
+        padh = self.target_size[0] - h
+        padw = self.target_size[1] - w
+        padded_target = self._call_kernel(
+            pad,
+            resized_target,
+            # pad_left,  pad_top,  pad_right, pad_bottom
+            (0, 0, padw, padh),
+        )
+        return padded_target
 
-        return img, target
+    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+        """
+        Compute the output size given input size and target long side length.
+        """
+        oldh, oldw = query_size(flat_inputs)
+        size_idx = np.argmax([oldh, oldw])
+        scale = self.target_size[size_idx] * 1.0 / max(oldh, oldw)
+        newh, neww = oldh * scale, oldw * scale
+        neww = int(neww + 0.5)
+        newh = int(newh + 0.5)
+        return {"height": newh, "width": neww}
