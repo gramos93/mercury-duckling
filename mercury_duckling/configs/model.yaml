@@ -1,6 +1,19 @@
 # Path: mercury_duckling/configs/model.yaml
-model: SAM
-checkpoint: checkpoints/sam_vit_h_4b8939.pth
-type: vit_h   # vit_s, vit_h, vit_b
-threshold: 0.5
-
+models:
+  SAM:
+    checkpoint: checkpoints/sam_vit_h_4b8939.pth
+    type: vit_h
+    threshold: 0.5
+  RITM:
+    checkpoint: checkpoints/coco_lvis_h18_itermask.pth
+    threshold: 0.49
+  IUNET:
+    checkpoint: checkpoints/InterSegSynthFT.pth
+    threshold: 0.5
+  DINO:
+    backbone_size: small
+    out_indices: [8, 9, 10, 11]
+    classes: 1
+    threshold: 0.5
+selected_model: SAM
+model: "${models[${selected_model}]}"

@@ -1,6 +1,5 @@
 # Path: mercury_duckling/configs/base.yaml
 mode: train     # train, test
-type: thermal   # thermal *.pt, rgb *.jpg
 device: cpu     # cpu, cuda:{idx}, ddp (DataParallel) 
 logging:
   is_online: False

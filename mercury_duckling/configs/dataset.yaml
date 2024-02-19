@@ -1,7 +1,16 @@
 # Path: mercury_duckling/configs/dataset.yaml
-root: "../data/merged_dataset_delam"
-ann_file: delamination.json
+seed: 42
 batch_size: 16
 num_workers: 4
 split: 0.75   # train, val
-seed: 42
+dataset:
+  thermal:
+    root: "../data/merged_dataset_delam_thm"
+    ann_file: delamination.json
+    type: thermal
+  ape:
+    root: "../data/merged_dataset_delam_ape"
+    ann_file: delamination.json
+    type: rgb
+selected_data: thermal
+data: "${dataset[${selected_data}]}"

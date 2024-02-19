@@ -1,1 +1,1 @@
-from .console import console, console_status
+from .console import console, console_status, config2table
