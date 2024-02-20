@@ -1,87 +1,99 @@
-from typing import Any, List, Tuple, Optional, Union
-from typing import List, Optional, Tuple, Union, Any, Dict
-from matplotlib import colormaps
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
-from PIL import Image
-from skimage.measure import label
-
 import torch
-from torch import Tensor
-from torch.nn.functional import one_hot
-
+from matplotlib.colors import Colormap as pltColormap
+from matplotlib import colormaps
+from scipy.ndimage import label
+from torch.nn import functional as F
 from torchvision import tv_tensors
-from torchvision.utils import _log_api_usage_once
 from torchvision.transforms.v2 import InterpolationMode, Transform
 from torchvision.transforms.v2._utils import _setup_size, query_size
+from torchvision.transforms.v2.functional import pad, resize
 from torchvision.transforms.v2.functional._misc import (
-    _register_kernel_internal,
     _get_kernel,
+    _register_kernel_internal,
 )
-from torchvision.transforms.v2.functional import resize, pad
+from torchvision.utils import _log_api_usage_once
 
 
-class Blobify(torch.nn.Module):
-    def forward(self, img: Union[Tensor, np.array]) -> np.ndarray:
-        if img.ndim == 3 and img.shape[0] == 1:
-            img = img[0]
-        if isinstance(img, Tensor):
-            img = img.numpy()
+def blobify(
+    inpt: torch.Tensor,
+) -> torch.Tensor:
+    """See :class:`Blobify` for details."""
+    _log_api_usage_once(blobify)
 
-        return label(img)
+    kernel = _get_kernel(blobify, type(inpt))
+    return kernel(inpt)
 
 
-class OneHotEncodeFromBlobs(torch.nn.Module):
+@_register_kernel_internal(blobify, tv_tensors.Mask)
+def blobify_mask_tensor(inpt: tv_tensors.Mask) -> tv_tensors.Mask:
+    label(inpt.numpy(), output=inpt.numpy())
+    inpt = tv_tensors.Mask(inpt, device=inpt.device)
+    return inpt
+
+
+class Blobify(Transform):
+    def _transform(
+        self, inpt: tv_tensors.Mask, params: Dict[str, Any]
+    ) -> tv_tensors.Mask:
+        return self._call_kernel(blobify, inpt)
+
+
+def one_hot(
+    inpt: tv_tensors.Mask,
+) -> tv_tensors.Mask:
+    """See :class:`one_hot` for details."""
+    if torch.jit.is_scripting():
+        return one_hot_mask_tensor(inpt)
+
+    _log_api_usage_once(one_hot)
+
+    kernel = _get_kernel(one_hot, type(inpt))
+    return kernel(inpt)
+
+
+@_register_kernel_internal(one_hot, tv_tensors.Mask)
+def one_hot_mask_tensor(
+    inpt: tv_tensors.Mask, background: bool = False
+) -> tv_tensors.Mask:
+    out = F.one_hot(inpt) if background else F.one_hot(inpt)[..., 1]
+    return tv_tensors.Mask(out)
+
+
+class OneHotEncodeFromBlobs(Transform):
     def __init__(self, background: bool = False):
         super().__init__()
         self.background = background
 
-    def _one_hot_numpy(self, img: np.ndarray) -> np.ndarray:
-        return ((np.arange(img.max() + 1) == img[..., None])).astype(np.uint8)
-
-    def forward(self, img: Union[Tensor, np.array]) -> Union[Tensor, np.array]:
-        if img.ndim == 3 and img.shape[0] == 1:
-            img = img[0]
-
-        if isinstance(img, Tensor):
-            encoded = one_hot(img.long())
-        elif isinstance(img, np.ndarray):
-            encoded = self._one_hot_numpy(img)
-
-        if self.background:
-            return encoded
-        else:
-            return encoded[..., 1:]
+    def _transform(
+        self, inpt: tv_tensors.Mask, params: Dict[str, Any]
+    ) -> tv_tensors.Mask:
+        return self._call_kernel(one_hot, inpt, self.background)
 
 
-class Colormap(torch.nn.Module):
+class Colormap(Transform):
     # Add custom colormap support (FLIR most used, etc.)
     # https://stackoverflow.com/questions/28495390/thermal-imaging-palette
     # https://www.flir.ca/discover/industrial/picking-a-thermal-color-palette/
     def __init__(self, colormap: str = "jet"):
         super().__init__()
-        self._preprossing = MinMaxNormalization()
-        self.cmap = colormaps.get_cmap(colormap)
+        self.cmap: pltColormap = colormaps.get_cmap(colormap)
 
-    def forward(self, img: Tensor) -> Tensor:
-        assert isinstance(
-            img, (Tensor, np.ndarray)
-        ), "Image must be a Tensor or np.ndarray."
+    def _transform(self, inpt: tv_tensors.Image) -> tv_tensors.Image:
+        # FIXME: Not sure if this is okay
+        if not isinstance(inpt, tv_tensors.Image):
+            return inpt
 
-        if img.ndim == 3 and img.shape[0] == 1:
-            img = img[0]
+        if inpt.max() > 1.0 or inpt.min() < 0.0:
+            inpt = self._call_kernel(minmax_normalize, inpt)
 
-        if img.max() > 1.0 or img.min() < 0.0:
-            img = self._preprossing(img)
-        if isinstance(img, Tensor):
-            img = img.numpy()
-            colored = self.cmap(img)
-        else:
-            colored = self.cmap(img)
-
-        return colored[..., :3]
+        colored = self.cmap(inpt)  # Will be numpy array
+        return tv_tensors.Image(colored[..., :3])
 
 
-class ImageResizeByCoefficient(torch.nn.Module):
+class ResizeByCoefficient(Transform):
     def __init__(
         self,
         coefficient,
@@ -95,22 +107,28 @@ class ImageResizeByCoefficient(torch.nn.Module):
         self.max_size = max_size
         self.antialias = antialias
 
-    def forward(self, img):
-        img_size = list(img.shape)
-        img_size[0] = (img_size[0] // self.coefficient) * self.coefficient
-        img_size[1] = (img_size[1] // self.coefficient) * self.coefficient
+    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+        oldh, oldw = query_size(flat_inputs)
+        newh = (oldh // self.coefficient) * self.coefficient
+        neww = (oldw // self.coefficient) * self.coefficient
 
-        img_pil = Image.fromarray(np.uint8(img))
-        res = resize(
-            img_pil, img_size[:2], self.interpolation, self.max_size, self.antialias
+        return {"height": newh, "width": neww}
+
+    def _transform(self, inpt):
+        params = self._get_params(inpt)
+        return self._call_kernel(
+            resize,
+            inpt,
+            size=(params["heigth"], params["width"]),
+            interpolation=self.interpolation,
+            antialias=self.antialias,
         )
-        return np.asarray(res)
 
 
 def minmax_normalize(
-    inpt: torch.Tensor,
-) -> torch.Tensor:
-    """See :class:`~torchvision.transforms.v2.Normalize` for details."""
+    inpt: tv_tensors.Image,
+) -> tv_tensors.Image:
+    """See :class:`MinMaxNormalization` for details."""
     if torch.jit.is_scripting():
         return minmax_scale_image(inpt)
 
@@ -120,14 +138,15 @@ def minmax_normalize(
     return kernel(inpt)
 
 
-@_register_kernel_internal(minmax_normalize, torch.Tensor)
 @_register_kernel_internal(minmax_normalize, tv_tensors.Image)
-def minmax_scale_image(inpt: torch.Tensor) -> torch.Tensor:
+def minmax_scale_image(inpt: tv_tensors.Image) -> tv_tensors.Image:
     return inpt.sub(inpt.min()).div_(inpt.max() - inpt.min())
 
 
 class MinMaxNormalization(Transform):
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+    def _transform(
+        self, inpt: tv_tensors.Image, params: Dict[str, Any]
+    ) -> tv_tensors.Image:
         return self._call_kernel(minmax_normalize, inpt)
 
 

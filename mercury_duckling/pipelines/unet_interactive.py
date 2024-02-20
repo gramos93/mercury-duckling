@@ -2,10 +2,8 @@ from warnings import warn
 import numpy as np
 import cv2
 import torch
-from torchvision.transforms import Compose
 
 from .core import InteractiveTest
-from ..datasets import ThermalDataset, THERMAL_TYPE, transforms
 
 from ..models.inter_unet.networks.models import build_model
 from ..models.inter_unet.networks.transforms import (
@@ -19,44 +17,14 @@ class UnetInteractiveTest(InteractiveTest):
         super().__init__(config)
         self._current_id = None
 
-    def _set_dataset(self):
-        transform = Compose(
-            [
-                transforms.Colormap("jet"),
-            ]
-        )
-        target_transform = Compose(
-            [
-                transforms.Blobify(),
-                transforms.OneHotEncodeFromBlobs(),
-            ]
-        )
-        both_transform = None
-        self._dataset = ThermalDataset(
-            root=self._config["dataset"]["root"],
-            annFile=self._config["dataset"]["annFile"],
-            transform=transform,
-            target_transform=target_transform,
-            both_transform=both_transform,
-            thermal_type=THERMAL_TYPE.FLIR,
-        )
-        # Log dataset information
-        # self.logger.log_parameters(
-        #     {
-        #         "transform": self._get_attribute_name(transform),
-        #         "both_transform": self._get_attribute_name(both_transform),
-        #         "target_transform": self._get_attribute_name(target_transform),
-        #     }
-        # )
-
     def _setup_model(self):
         class InterUnetArgs:
             encoder = "resnet50_GN_WS"
             decoder = "InteractiveSegNet"
             use_mask_input = True
             use_usr_encoder = True
-            weights = self._config["model"]["checkpoint"]
-            device = self.device
+            weights = self._config.checkpoint
+            device = "cpu"
 
         args = InterUnetArgs()
         self.model = build_model(args)
@@ -85,28 +53,25 @@ class UnetInteractiveTest(InteractiveTest):
         trimap_scale_np = scale_input(trimap_np, cv2.INTER_NEAREST)
         alpha_old_scale_np = scale_input(alpha_old_np, cv2.INTER_LANCZOS4)
 
-        with torch.no_grad():
-            image_torch = np_to_torch(image_scale_np)
-            trimap_torch = np_to_torch(trimap_scale_np)
-            alpha_old_torch = np_to_torch(alpha_old_scale_np[:, :, None])
+        image_torch = np_to_torch(image_scale_np)
+        trimap_torch = np_to_torch(trimap_scale_np)
+        alpha_old_torch = np_to_torch(alpha_old_scale_np[:, :, None])
 
-            trimap_transformed_torch = np_to_torch(trimap_transform(trimap_scale_np))
-            image_transformed_torch = groupnorm_normalise_image(
-                image_torch.clone(), format="nchw"
-            )
-
-            alpha = self.model(
-                image_transformed_torch,
-                trimap_transformed_torch,
-                alpha_old_torch,
-                trimap_torch,
-            )
-            alpha = cv2.resize(
-                alpha[0].cpu().numpy().transpose((1, 2, 0)), (w, h), cv2.INTER_LANCZOS4
-            )
+        trimap_transformed_torch = np_to_torch(trimap_transform(trimap_scale_np))
+        image_transformed_torch = groupnorm_normalise_image(
+            image_torch.clone(), format="nchw"
+        )
+        alpha = self.model(
+            image_transformed_torch,
+            trimap_transformed_torch,
+            alpha_old_torch,
+            trimap_torch,
+        )
+        alpha = cv2.resize(
+            alpha[0].cpu().numpy().transpose((1, 2, 0)), (w, h), cv2.INTER_LANCZOS4
+        )
         alpha[trimap_np[:, :, 0] == 1] = 0
         alpha[trimap_np[:, :, 1] == 1] = 1
-
         alpha = remove_non_fg_connected(alpha, trimap_np[:, :, 1])
         return alpha
 
@@ -114,7 +79,9 @@ class UnetInteractiveTest(InteractiveTest):
         for prompt in prompts:
             if prompt["type"] == "point":
                 # coords are in (y, x) format
-                trimap[prompt["coords"][1], prompt["coords"][0], int(prompt["label"])] = 1
+                trimap[
+                    prompt["coords"][1], prompt["coords"][0], int(prompt["label"])
+                ] = 1
             else:
                 warn(f"Ignoring invalid prompt type: {prompt['type']}.")
         return trimap
@@ -122,10 +89,10 @@ class UnetInteractiveTest(InteractiveTest):
     def predict(self, inputs, prompts, aux, id):
         h, w, c = inputs.shape
         if id != self._current_id:
-            # This model does not need to set an image. 
+            # This model does not need to set an image.
             # Hence we only reset the previous mask.
             self._current_id = id
-        
+
         if aux is None:
             aux = np.zeros((h, w))
 
@@ -135,6 +102,7 @@ class UnetInteractiveTest(InteractiveTest):
         return alpha, None
 
 
+# TODO: Re implement this as a v2.Transform
 def scale_input(x: np.ndarray, scale_type) -> np.ndarray:
     """Scales so that min side length is 352 and sides are divisible by 8"""
     h, w = x.shape[:2]
@@ -144,6 +112,7 @@ def scale_input(x: np.ndarray, scale_type) -> np.ndarray:
     return x_scale
 
 
+# TODO: Re implement this as a v2.transform
 def remove_non_fg_connected(alpha_np, fg_pos):
     if np.count_nonzero(fg_pos) > 0:
         ys, xs = np.where(fg_pos == 1)
@@ -164,5 +133,6 @@ def remove_non_fg_connected(alpha_np, fg_pos):
     return alpha_np
 
 
+# TODO : replace this with an actual transform.
 def np_to_torch(x):
     return torch.from_numpy(x).permute(2, 0, 1)[None, :, :, :].float()
