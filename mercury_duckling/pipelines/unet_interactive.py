@@ -102,16 +102,6 @@ class UnetInteractiveTest(InteractiveTest):
         return alpha, None
 
 
-# TODO: Re implement this as a v2.Transform
-def scale_input(x: np.ndarray, scale_type) -> np.ndarray:
-    """Scales so that min side length is 352 and sides are divisible by 8"""
-    h, w = x.shape[:2]
-    h1 = int(np.ceil(h / 32) * 32)
-    w1 = int(np.ceil(w / 32) * 32)
-    x_scale = cv2.resize(x, (w1, h1), interpolation=scale_type)
-    return x_scale
-
-
 # TODO: Re implement this as a v2.transform
 def remove_non_fg_connected(alpha_np, fg_pos):
     if np.count_nonzero(fg_pos) > 0:

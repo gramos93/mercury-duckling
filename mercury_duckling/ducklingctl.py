@@ -1,7 +1,9 @@
 import click
 from omegaconf import OmegaConf
+from mercury_duckling.datasets import build_segmentation, build_thermal
 
 from mercury_duckling.utils import console
+from mercury_duckling.models import build_predictor, build_segmentor
 
 
 @click.command()
@@ -36,7 +38,7 @@ def main(device, model, dataset, mode):
         return 1
 
     if model is not None and (model := cfg_model.models.get(model, False)):
-        cfg_model.model = model
+        cfg_model.selected_model = model
     elif not model:
         console.log("[bold red]Invalid model. Exiting.")
         return 2
@@ -49,7 +51,17 @@ def main(device, model, dataset, mode):
 
     cfg = OmegaConf.merge(cfg_base, cfg_data, cfg_model)
     console.log("[bold green]Configuration generated. Building pipeline...")
-    
+    model = (
+        build_predictor(cfg)
+        if cfg.model.type == "interactive"
+        else build_segmentor(cfg)
+    )
+    dataset = (
+        build_thermal(cfg)
+        if cfg.selected_data == "thermal"
+        else build_segmentation(cfg)
+    )
+    # exp =
     return 0
 
 

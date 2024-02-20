@@ -1,8 +1,4 @@
 # Path: mercury_duckling/configs/dataset.yaml
-seed: 42
-batch_size: 16
-num_workers: 4
-split: 0.75   # train, val
 dataset:
   thermal:
     root: "../data/merged_dataset_delam_thm"
@@ -14,3 +10,13 @@ dataset:
     type: rgb
 selected_data: thermal
 data: "${dataset[${selected_data}]}"
+
+# General training data parameters
+seed: 42
+batch_size: 16
+num_workers: 4
+split: 0.75   # train, val
+
+# General transform parameters
+target_size: !!python/tuple [256, 320]
+colormap: greys  

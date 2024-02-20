@@ -1,17 +1,19 @@
 # Path: mercury_duckling/configs/model.yaml
 models:
   SAM:
+    type: interactive
     checkpoint: checkpoints/sam_vit_h_4b8939.pth
-    type: vit_h
-    threshold: 0.5
+    size: vit_h
   RITM:
+    type: interactive
     checkpoint: checkpoints/coco_lvis_h18_itermask.pth
     threshold: 0.49
   IUNET:
+    type: interactive
     checkpoint: checkpoints/InterSegSynthFT.pth
-    threshold: 0.5
-  DINO:
-    backbone_size: small
+  DINOV2:
+    type: segmentor
+    size: small
     out_indices: [8, 9, 10, 11]
     classes: 1
     threshold: 0.5
