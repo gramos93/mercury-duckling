@@ -23,8 +23,8 @@ class SamInteractiveTest(InteractiveTest):
         ])
         both_transform = None
         self._dataset = ThermalDataset(
-            root=self._config["dataset"]["root"],
-            annFile=self._config["dataset"]["annFile"],
+            root=self._cfg["dataset"]["root"],
+            annFile=self._cfg["dataset"]["annFile"],
             transform=transform,
             target_transform=target_transform,
             both_transform=both_transform,
@@ -40,8 +40,8 @@ class SamInteractiveTest(InteractiveTest):
         # )
 
     def _setup_model(self):
-        self.__sam_checkpoint = self._config["model"]["checkpoint"]
-        self.__model_type = self._config["model"]["type"]
+        self.__sam_checkpoint = self._cfg["model"]["checkpoint"]
+        self.__model_type = self._cfg["model"]["type"]
         sam = (
             sam_model_registry[self.__model_type](self.__sam_checkpoint)
             .to(self.device)

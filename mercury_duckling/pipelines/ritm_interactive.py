@@ -18,7 +18,7 @@ class RitmInteractiveTest(InteractiveTest):
     def __init__(self, config) -> None:
         super().__init__(config)
         self._current_id = None
-        self._threshold = self._config["model"]["threshold"]
+        self._threshold = self._cfg["model"]["threshold"]
 
     def _set_dataset(self):
         transform = Compose(
@@ -34,8 +34,8 @@ class RitmInteractiveTest(InteractiveTest):
         )
         both_transform = None
         self._dataset = ThermalDataset(
-            root=self._config["dataset"]["root"],
-            annFile=self._config["dataset"]["annFile"],
+            root=self._cfg["dataset"]["root"],
+            annFile=self._cfg["dataset"]["annFile"],
             transform=transform,
             target_transform=target_transform,
             both_transform=both_transform,
@@ -51,7 +51,7 @@ class RitmInteractiveTest(InteractiveTest):
         # )
 
     def _setup_model(self):
-        model = utils.load_is_model(self._config["model"]["checkpoint"], self.device)
+        model = utils.load_is_model(self._cfg["model"]["checkpoint"], self.device)
         self.model = get_predictor(
             model, "NoBRS", self.device, prob_thresh=self._threshold
         )

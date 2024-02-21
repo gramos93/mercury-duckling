@@ -6,7 +6,6 @@ from omegaconf import DictConfig
 from segmentation_models_pytorch.metrics import get_stats, iou_score
 from torch import no_grad
 from torch.utils.data import DataLoader, Dataset
-from torchvision.transforms.v2 import Compose
 
 from ..models.predictor import BasePredictor
 from ..samplers import BaseSampler, sampler_register
@@ -24,10 +23,10 @@ class InteractiveTest(IExperiment):
 
     def __init__(self, predictor: BasePredictor, dataset: Dataset, config: DictConfig):
         super().__init__()
-        self._config = config
-        self.predictor = predictor
+        self._cfg = config
         self._dataset = dataset
-        self.device = self._config.device
+        self.predictor = predictor
+        self.device = self._cfg.device
         self.num_epochs = 1
         self.metrics = {
             "iou_score": iou_score,
@@ -37,17 +36,11 @@ class InteractiveTest(IExperiment):
         # TODO: Setup cometml logger for interactive logging.
         pass
 
-    def _get_attribute_name(self, attribute) -> List[str]:
-        if isinstance(attribute, Compose):
-            return [T.__class__.__name__ for T in attribute.transforms]
-        else:
-            return [attribute.__class__.__name__]
-
     def __setup_sampler(self):
-        sampler_type = self._config.sampler.type
-        sampler_method = self._config.sampler.method
+        sampler_type = self._cfg.sampler.type
+        sampler_method = self._cfg.sampler.method
         self.sampler: BaseSampler = sampler_register[sampler_type][sampler_method](
-            **self._config.sampler.args
+            **self._cfg.sampler.args
         )
 
     def _setup_model(self):
@@ -71,43 +64,26 @@ class InteractiveTest(IExperiment):
         self._setup_model()
         self._setup_callbacks()
 
-    def on_experiment_end(self, exp: "IExperiment") -> None:
-        super().on_experiment_end(exp)
-
     def on_epoch_start(self, exp: "IExperiment") -> None:
         self.epoch_metrics: Dict = defaultdict(
             lambda: dict(zip(self.metrics.keys(), [0.0] * len(self.metrics)))
         )
 
-    def run_epoch(self) -> None:
-        self._run_event("on_dataset_start")
-        self.run_dataset()
-        self._run_event("on_dataset_end")
-
     def on_dataset_start(self, exp: "IExperiment"):
         super().on_dataset_start(exp)
         self.sampler.is_sampling = True
 
-    def on_epoch_end(self, exp: IExperiment) -> None:
-        super().on_epoch_end(exp)
-        metrics_str = ", ".join(
-            "{}={:.3f}".format(key.title(), val)
-            for (key, val) in self.epoch_metrics.items()
-        )
-        console.log(
-            f"[bold][red]Epoch: {self.epoch_step}[/] - "
-            f"[bold cyan]{self.dataset_key}[/]"
-            f" -> [magenta]metrics: {metrics_str}[/]"
-        )
-
-    @no_grad()
-    def run_batch(self) -> None:
-        # TODO: Move to on_batch_start
+    # on_batch_start
+    def on_batch_start(self, exp: IExperiment):
+        super().on_batch_start(exp)
         console_status.update(
             f"[bold green]Running: {self.dataset_key} "
             f"-> Epoch: {self.epoch_step}/{self.num_epochs} "
             f"-> Batch: {self.dataset_batch_step}/{len(self.dataset)}"
         )
+
+    @no_grad()
+    def run_batch(self) -> None:
         inputs, targets, id = self.batch
 
         for target in targets:
@@ -130,6 +106,28 @@ class InteractiveTest(IExperiment):
     def on_batch_end(self, exp: IExperiment) -> None:
         for metric_name, metric_value in self.batch_metrics.items():
             self.epoch_metrics[metric_name] += metric_value
+
+    # on_dataset_end
+
+    def on_epoch_end(self, exp: IExperiment) -> None:
+        super().on_epoch_end(exp)
+        metrics_str = ", ".join(
+            "{}={:.3f}".format(key.title(), val)
+            for (key, val) in self.epoch_metrics.items()
+        )
+        console.log(
+            f"[bold][red]Epoch: {self.epoch_step}[/] - "
+            f"[bold cyan]{self.dataset_key}[/]"
+            f" -> [magenta]metrics: {metrics_str}[/]"
+        )
+
+    def on_experiment_end(self, exp: "IExperiment") -> None:
+        super().on_experiment_end(exp)
+
+    def run_epoch(self) -> None:
+        self._run_event("on_dataset_start")
+        self.run_dataset()
+        self._run_event("on_dataset_end")
 
     def _run(self) -> None:
         self._run_event("on_experiment_start")

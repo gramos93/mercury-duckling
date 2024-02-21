@@ -7,6 +7,9 @@ from mercury_duckling.utils import console
 from mercury_duckling.models import build_predictor, build_segmentor
 
 
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+add_dir = lambda x: os.path.join(THIS_DIR, x)
+
 @click.command()
 @click.option("--device", default=None, help="Specify the device to use.")
 @click.option(
@@ -26,9 +29,9 @@ from mercury_duckling.models import build_predictor, build_segmentor
 )
 def main(device, model, dataset, mode):
     console.rule("[bold]Mercury Duckling Pipeline.")
-    cfg_base = OmegaConf.load("configs/base.yaml")
-    cfg_data = OmegaConf.load("configs/dataset.yaml")
-    cfg_model = OmegaConf.load("configs/model.yaml")
+    cfg_base = OmegaConf.load(add_dir("configs/base.yaml"))
+    cfg_data = OmegaConf.load(add_dir("configs/dataset.yaml"))
+    cfg_model = OmegaConf.load(add_dir("configs/model.yaml"))
 
     cfg_base.device = device if device is not None else cfg_base.device
 
@@ -62,6 +65,7 @@ def main(device, model, dataset, mode):
         if cfg.selected_data == "thermal"
         else build_segmentation(cfg)
     )
+    console.log("[bold green]Pipeline built. Running experiment...")
     # exp =
     return 0
 

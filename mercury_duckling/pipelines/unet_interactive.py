@@ -23,7 +23,7 @@ class UnetInteractiveTest(InteractiveTest):
             decoder = "InteractiveSegNet"
             use_mask_input = True
             use_usr_encoder = True
-            weights = self._config.checkpoint
+            weights = self._cfg.checkpoint
             device = "cpu"
 
         args = InterUnetArgs()

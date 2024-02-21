@@ -3,7 +3,7 @@ import os
 import torch
 import torchvision.transforms.v2 as v2
 from torchvision import tv_tensors
-from torchvision.datasets import CocoDetection
+from torchvision.datasets import CocoDetection, wrap_dataset_for_transforms_v2
 
 from .thermal import Thermal
 from .thermal_dataset import ThermalDataset
@@ -52,12 +52,14 @@ def build_thermal(cfg):
                 ),
             ]
         )
-    return ThermalDataset(
-        root=cfg.data.root,
-        annFile=os.path.join(cfg.data.root, "annotations", cfg.data.ann_file),
-        transform=transform,
-        target_transform=target_transform,
-        transforms=transforms,
+    return wrap_dataset_for_transforms_v2(
+        ThermalDataset(
+            root=cfg.data.root,
+            annFile=os.path.join(cfg.data.root, "annotations", cfg.data.ann_file),
+            transform=transform,
+            target_transform=target_transform,
+            transforms=transforms,
+        )
     )
 
 
@@ -92,10 +94,12 @@ def build_segmentation(cfg):
                 ),
             ]
         )
-    return CocoDetection(
-        root=cfg.data.root,
-        annFile=os.path.join(cfg.data.root, "annotations", cfg.data.ann_file),
-        transform=transform,
-        target_transform=target_transform,
-        transforms=transforms,
+    return wrap_dataset_for_transforms_v2(
+        CocoDetection(
+            root=cfg.data.root,
+            annFile=os.path.join(cfg.data.root, "annotations", cfg.data.ann_file),
+            transform=transform,
+            target_transform=target_transform,
+            transforms=transforms,
+        )
     )
