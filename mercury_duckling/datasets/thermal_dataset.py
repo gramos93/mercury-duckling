@@ -40,7 +40,7 @@ class ThermalDataset(CocoDetection):
         """
         super().__init__(
             root=root,
-            annFile=os.path.join(root, "annotations", annFile),
+            annFile=annFile,
             transforms=transforms,
             transform=transform,
             target_transform=target_transform,

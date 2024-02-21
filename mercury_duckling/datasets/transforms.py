@@ -9,7 +9,7 @@ from torch.nn import functional as F
 from torchvision import tv_tensors
 from torchvision.transforms.v2 import InterpolationMode, Transform
 from torchvision.transforms.v2._utils import _setup_size, query_size
-from torchvision.transforms.v2.functional import pad, resize
+from torchvision.transforms.v2.functional import pad, resize, to_image
 from torchvision.transforms.v2.functional._misc import (
     _get_kernel,
     _register_kernel_internal,
@@ -26,11 +26,11 @@ def blobify(
     kernel = _get_kernel(blobify, type(inpt))
     return kernel(inpt)
 
-
+# TODO: Add kernel for bboxes.
 @_register_kernel_internal(blobify, tv_tensors.Mask)
 def blobify_mask_tensor(inpt: tv_tensors.Mask) -> tv_tensors.Mask:
     label(inpt.numpy(), output=inpt.numpy())
-    inpt = tv_tensors.Mask(inpt, device=inpt.device)
+    inpt = tv_tensors.Mask(inpt, dtype=torch.uint8)
     return inpt
 
 
@@ -58,8 +58,10 @@ def one_hot(
 def one_hot_mask_tensor(
     inpt: tv_tensors.Mask, background: bool = False
 ) -> tv_tensors.Mask:
-    out = F.one_hot(inpt) if background else F.one_hot(inpt)[..., 1]
-    return tv_tensors.Mask(out)
+    out = F.one_hot(inpt.long()) if background else F.one_hot(inpt.long())[..., 1:]
+    if len(out.shape) == 4 and out.shape[0] == 1:
+        out = out.squeeze(0)
+    return tv_tensors.Mask(out.permute(2, 0, 1), dtype=torch.uint8)
 
 
 class OneHotEncodeFromBlobs(Transform):
@@ -81,7 +83,9 @@ class Colormap(Transform):
         super().__init__()
         self.cmap: pltColormap = colormaps.get_cmap(colormap)
 
-    def _transform(self, inpt: tv_tensors.Image) -> tv_tensors.Image:
+    def _transform(
+        self, inpt: tv_tensors.Image, params: Dict[str, Any]
+    ) -> tv_tensors.Image:
         # FIXME: Not sure if this is okay
         if not isinstance(inpt, tv_tensors.Image):
             return inpt
@@ -89,8 +93,11 @@ class Colormap(Transform):
         if inpt.max() > 1.0 or inpt.min() < 0.0:
             inpt = self._call_kernel(minmax_normalize, inpt)
 
-        colored = self.cmap(inpt)  # Will be numpy array
-        return tv_tensors.Image(colored[..., :3])
+        colored = self.cmap(inpt)  # Will be numpy array with a ghost dimension
+        if len(colored.shape) == 4:
+            return to_image(colored[0, ..., :3])
+
+        return to_image(colored[..., :3])
 
 
 class ResizeByCoefficient(Transform):

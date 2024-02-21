@@ -1,5 +1,6 @@
 import os
 
+import torch
 import torchvision.transforms.v2 as v2
 from torchvision import tv_tensors
 from torchvision.datasets import CocoDetection
@@ -7,6 +8,8 @@ from torchvision.datasets import CocoDetection
 from .thermal import Thermal
 from .thermal_dataset import ThermalDataset
 from .transforms import (
+    Blobify,
+    OneHotEncodeFromBlobs,
     Colormap,
     MinMaxNormalization,
     ResizeByCoefficient,
@@ -22,13 +25,16 @@ def build_thermal(cfg):
             [
                 v2.ToImage(),
                 # MinMaxNormalization(),
-                Colormap(colormap=cfg.colormap),
                 v2.RandomZoomOut(fill={tv_tensors.Image: (0), "others": 0}),
                 v2.RandomIoUCrop(),
                 v2.RandomHorizontalFlip(p=0.7),
                 # ResizeByCoefficient(cfg.data.coeff),
                 ResizeLongestSideAndPad(target_size=cfg.model.img_size),
+                Colormap(colormap=cfg.colormap),
                 v2.ClampBoundingBoxes(),
+                v2.ToDtype(
+                    {tv_tensors.Image: torch.float32, "others": None}, scale=False
+                ),
             ]
         )
     else:
@@ -38,14 +44,17 @@ def build_thermal(cfg):
             [
                 v2.ToImage(),
                 # MinMaxNormalization(),
-                Colormap(colormap=cfg.colormap),
-                # ResizeByCoefficient(cfg.data.coeff),
                 ResizeLongestSideAndPad(target_size=cfg.model.img_size),
+                # ResizeByCoefficient(cfg.data.coeff),
+                Colormap(colormap=cfg.colormap),
+                v2.ToDtype(
+                    {tv_tensors.Image: torch.float32, "others": None}, scale=False
+                ),
             ]
         )
     return ThermalDataset(
         root=cfg.data.root,
-        annFile=os.path.join(cfg.data.root, cfg.data.ann_file),
+        annFile=os.path.join(cfg.data.root, "annotations", cfg.data.ann_file),
         transform=transform,
         target_transform=target_transform,
         transforms=transforms,
@@ -65,6 +74,9 @@ def build_segmentation(cfg):
                 # ResizeByCoefficient(cfg.data.coeff),
                 ResizeLongestSideAndPad(target_size=cfg.model.img_size),
                 v2.ClampBoundingBoxes(),
+                v2.ToDtype(
+                    {tv_tensors.Image: torch.float32, "others": None}, scale=False
+                ),
             ]
         )
     else:
@@ -75,11 +87,14 @@ def build_segmentation(cfg):
                 v2.ToImage(),
                 # ResizeByCoefficient(cfg.data.coeff),
                 ResizeLongestSideAndPad(target_size=cfg.model.img_size),
+                v2.ToDtype(
+                    {tv_tensors.Image: torch.float32, "others": None}, scale=False
+                ),
             ]
         )
     return CocoDetection(
         root=cfg.data.root,
-        annFile=os.path.join(cfg.data.root, cfg.data.ann_file),
+        annFile=os.path.join(cfg.data.root, "annotations", cfg.data.ann_file),
         transform=transform,
         target_transform=target_transform,
         transforms=transforms,

@@ -1,3 +1,4 @@
+import os
 import click
 from omegaconf import OmegaConf
 from mercury_duckling.datasets import build_segmentation, build_thermal
