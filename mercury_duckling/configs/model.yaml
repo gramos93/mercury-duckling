@@ -20,7 +20,7 @@ models:
 selected_model: SAM
 model: "${models[${selected_model}]}"
 sampler:
-  type: points
-  method: clicker
+  type: points    # points, boxes
+  method: clicker # clicker, random
   args:
     click_limit: 20

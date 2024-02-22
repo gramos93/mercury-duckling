@@ -44,6 +44,7 @@ class InteractiveTest(IExperiment):
         )
 
     def _setup_model(self):
+        self.predictor._setup_model()
         self.predictor.eval()
         self.predictor.to(self.device)
 

@@ -40,17 +40,21 @@ def main(device, model, dataset, mode):
 
     cfg_base.device = device if device is not None else cfg_base.device
 
-    if dataset is not None and (data := cfg_data.dataset.get(dataset, False)):
-        cfg_data.default = data
-    elif not data:
-        console.log("[bold red]Invalid dataset. Exiting.")
-        return 1
+    if dataset is not None:
+        data = cfg_data.datasets.get(dataset, False)
+        if not data:
+            console.log("[bold red]Invalid dataset. Exiting.")
+            return 1
+        else:
+            cfg_data.selected_data = data
 
-    if model is not None and (model := cfg_model.models.get(model, False)):
-        cfg_model.selected_model = model
-    elif not model:
-        console.log("[bold red]Invalid model. Exiting.")
-        return 2
+    if model is not None:
+        model = cfg_model.models.get(model, False)
+        if not model:
+            console.log("[bold red]Invalid model. Exiting.")
+            return 1
+        else:
+            cfg_model.selected_model= model
 
     if mode in ["train", "test", "infer"]:
         cfg_base.mode = mode

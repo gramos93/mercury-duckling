@@ -1,5 +1,5 @@
 # Path: mercury_duckling/configs/dataset.yaml
-dataset:
+datasets:
   thermal:
     root: "../data/merged_dataset_delam_thm"
     ann_file: delamination.json
@@ -9,7 +9,7 @@ dataset:
     ann_file: delamination.json
     type: rgb
 selected_data: thermal
-data: "${dataset[${selected_data}]}"
+data: "${datasets[${selected_data}]}"
 
 # General training data parameters
 seed: 42
@@ -18,5 +18,5 @@ num_workers: 4
 split: 0.75   # train, val
 
 # General transform parameters
-target_size: !!python/tuple [256, 320]
-colormap: greys  
+target_size: [256, 320]
+colormap: Greys
