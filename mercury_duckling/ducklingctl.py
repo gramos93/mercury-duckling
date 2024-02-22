@@ -1,10 +1,11 @@
 import os
 import click
 from omegaconf import OmegaConf
-from mercury_duckling.datasets import build_segmentation, build_thermal
 
-from mercury_duckling.utils import console
-from mercury_duckling.models import build_predictor, build_segmentor
+from .pipelines import InteractiveTest
+from .datasets import build_segmentation, build_thermal
+from .utils import console
+from .models import build_predictor, build_segmentor
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -70,7 +71,12 @@ def main(device, model, dataset, mode):
         else build_segmentation(cfg)
     )
     console.log("[bold green]Pipeline built. Running experiment...")
-    # exp =
+    exp = InteractiveTest(
+        predictor=model,
+        dataset=dataset,
+        config=cfg,
+    )
+    exp.run(exp)
     return 0
 
 

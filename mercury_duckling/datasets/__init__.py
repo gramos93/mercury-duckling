@@ -1,4 +1,5 @@
 import os
+from omegaconf import DictConfig
 
 import torch
 import torchvision.transforms.v2 as v2
@@ -17,7 +18,7 @@ from .transforms import (
 )
 
 
-def build_thermal(cfg):
+def build_thermal(cfg: DictConfig):
     if cfg.mode == "train":
         transform = None
         target_transform = None
@@ -64,7 +65,7 @@ def build_thermal(cfg):
     )
 
 
-def build_segmentation(cfg):
+def build_segmentation(cfg: DictConfig):
     if cfg.mode == "train":
         transform = None
         target_transform = None
