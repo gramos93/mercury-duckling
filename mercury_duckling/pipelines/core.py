@@ -1,10 +1,10 @@
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict
 
 from animus import IExperiment
 from omegaconf import DictConfig
 from segmentation_models_pytorch.metrics import get_stats, iou_score
-from torch import no_grad
+from torch import no_grad, zeros
 from torch.utils.data import DataLoader, Dataset
 
 from ..models.predictor import BasePredictor
@@ -14,7 +14,7 @@ from ..utils import console, console_status
 
 class InteractiveTest(IExperiment):
     """
-    InteractiveTest is a base class for segmentation experiments.
+    InteractiveTest is a base class for interactive segmentation experiments.
 
     Args:
             config (Dict): Configuration dictionary for the experiment.
@@ -66,7 +66,7 @@ class InteractiveTest(IExperiment):
 
     def on_epoch_start(self, exp: "IExperiment") -> None:
         self.epoch_metrics: Dict = defaultdict(
-            lambda: dict(zip(self.metrics.keys(), [0.0] * len(self.metrics)))
+            lambda: zeros((1, self._cfg.sampler.args.click_limit - 1))
         )
 
     def on_dataset_start(self, exp: "IExperiment"):
@@ -76,6 +76,9 @@ class InteractiveTest(IExperiment):
     # on_batch_start
     def on_batch_start(self, exp: IExperiment):
         super().on_batch_start(exp)
+        self.batch_metrics: Dict = defaultdict(
+            lambda: zeros((1, self._cfg.sampler.args.click_limit - 1))
+        )
         console_status.update(
             f"[bold green]Running: {self.dataset_key} "
             f"-> Epoch: {self.epoch_step}/{self.num_epochs} "
@@ -84,24 +87,26 @@ class InteractiveTest(IExperiment):
 
     @no_grad()
     def run_batch(self) -> None:
-        inputs, targets, id = self.batch
+        inputs, targets = self.batch
+        id = targets["image_id"]
 
-        for target in targets:
+        for target in targets["masks"]:
             outputs = None
             aux = None
-            for prompts in self.sampler.interact(mask=target, outs=outputs):
+            for click_step, prompts in enumerate(
+                self.sampler.interact(mask=target, outs=outputs)
+            ):
                 outputs, aux = self.predictor.predict(
                     inputs, prompts, aux if aux is not None else outputs, id
                 )
                 self.sampler.set_outputs(outputs)
                 stats = get_stats(outputs, target, mode="binary")
+                # NOTE: This metric calculation is not the same as NOCs.
                 for metric_name, metric in self.metrics.items():
-                    self.batch_metrics[metric_name] = metric(*stats, reduction="micro")
-
-                self.batch_metrics = {
-                    k: float(v) * (inputs.size(0) / len(self.dataset.dataset))
-                    for k, v in self.batch_metrics.items()
-                }
+                    score = metric(*stats, reduction="micro")
+                    self.batch_metrics[metric_name][click_step](
+                        float(score.item()) / len(self.dataset)
+                    )
 
     def on_batch_end(self, exp: IExperiment) -> None:
         for metric_name, metric_value in self.batch_metrics.items():
@@ -111,18 +116,14 @@ class InteractiveTest(IExperiment):
 
     def on_epoch_end(self, exp: IExperiment) -> None:
         super().on_epoch_end(exp)
-        metrics_str = ", ".join(
-            "{}={:.3f}".format(key.title(), val)
-            for (key, val) in self.epoch_metrics.items()
-        )
         console.log(
             f"[bold][red]Epoch: {self.epoch_step}[/] - "
-            f"[bold cyan]{self.dataset_key}[/]"
-            f" -> [magenta]metrics: {metrics_str}[/]"
+            f"[bold cyan]{self.dataset_key.upper()}[/]"
         )
 
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)
+        # TODO: print NOC metrics as table / epoch_metrics array
 
     def run_epoch(self) -> None:
         self._run_event("on_dataset_start")

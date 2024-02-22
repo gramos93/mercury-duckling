@@ -1,4 +1,3 @@
-from typing import Tuple
 import numpy as np
 from torch import Tensor
 from matplotlib import pyplot as plt
@@ -28,7 +27,7 @@ class BaseSampler:
             type (str, optional): Type of promtp to genetate. Defaults to "point".
 
         Yields:
-            list: List of promtps for the model to use. 
+            list: List of promtps for the model to use.
         """
         assert type in [
             "point",
@@ -62,7 +61,7 @@ class BaseSampler:
             "coords": [region.centroid[1], region.centroid[0]],
             "label": 1,
         }
-    
+
     def _get_scaled_bbox(self, region):
         # bbox in (min_row, min_col, max_row, max_col) format.
         ymin, xmin, ymax, xmax = region.bbox
@@ -97,7 +96,7 @@ class BaseSampler:
         Args:
             coords (np.array): Coordinates of the points.
             labels (list): Labels of the points.
-            ax (matplotlib.axes.Axes): Axes to plot on. 
+            ax (matplotlib.axes.Axes): Axes to plot on.
             marker_size (int, optional): Marker size. Defaults to 150.
         """
         pos_points = coords[labels == 1]

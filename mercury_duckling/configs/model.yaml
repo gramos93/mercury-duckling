@@ -19,3 +19,8 @@ models:
     threshold: 0.5
 selected_model: SAM
 model: "${models[${selected_model}]}"
+sampler:
+  type: points
+  method: clicker
+  args:
+    click_limit: 20

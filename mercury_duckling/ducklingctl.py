@@ -8,7 +8,11 @@ from mercury_duckling.models import build_predictor, build_segmentor
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-add_dir = lambda x: os.path.join(THIS_DIR, x)
+
+
+def add_dir(x):
+    return os.path.join(THIS_DIR, x)
+
 
 @click.command()
 @click.option("--device", default=None, help="Specify the device to use.")

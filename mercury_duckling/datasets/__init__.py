@@ -59,7 +59,8 @@ def build_thermal(cfg):
             transform=transform,
             target_transform=target_transform,
             transforms=transforms,
-        )
+        ),
+        target_keys=["masks", "boxes", "image_id" "labels"],
     )
 
 
@@ -101,5 +102,6 @@ def build_segmentation(cfg):
             transform=transform,
             target_transform=target_transform,
             transforms=transforms,
-        )
+        ),
+        target_keys=["masks", "boxes", "image_id" "labels"],
     )
