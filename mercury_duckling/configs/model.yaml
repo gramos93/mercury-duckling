@@ -30,3 +30,8 @@ preprocessing:
 postprocessing:
   type: null
   args: null
+optimizer: 
+  lr: 1e-5
+loss: 
+  mode: "binary"
+  smooth: 1.0e-12 

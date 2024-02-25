@@ -3,13 +3,166 @@ from typing import Dict
 
 from animus import IExperiment
 from omegaconf import DictConfig
-from segmentation_models_pytorch.metrics import get_stats, iou_score
-from torch import no_grad, zeros
-from torch.utils.data import DataLoader, Dataset
+from segmentation_models_pytorch.losses import DiceLoss
+from segmentation_models_pytorch.metrics import f1_score, get_stats, iou_score
+from torch import Generator, no_grad, set_grad_enabled, zeros
+from torch.optim import AdamW
+from torch.utils.data import DataLoader, Dataset, random_split
 
 from ..models.predictor import BasePredictor
 from ..samplers import BaseSampler, sampler_register
 from ..utils import console, console_status
+
+
+class SegmentationExp(IExperiment):
+    """
+    InteractiveTest is a base class for interactive segmentation experiments.
+
+    Args:
+            config (Dict): Configuration dictionary for the experiment.
+            engine (Engine): Engine to use for the experiment.
+    """
+
+    def __init__(self, segmentor: BasePredictor, dataset: Dataset, config: DictConfig):
+        super().__init__()
+        self._cfg = config
+        self._dataset = dataset
+        self.segmentor = segmentor
+        self.device = self._cfg.device
+        self.num_epochs = self._cfg.num_epochs
+        self.metrics = {
+            "iou_score": iou_score,
+            "fi_score": f1_score,
+        }
+
+    def _setup_model(self):
+        self.segmentor._setup_model()
+        self.segmentor.to(self.device)
+
+        self.criterion = DiceLoss(**self._cfg.loss)
+        self.optimizer = AdamW(self.segmentor.parameters(), **self._cfg.optimizer)
+
+    def __setup_dataloaders(self) -> None:
+        """Setup the dataloaders for the experiment."""
+        split_train = self._cfg.split
+        generator = Generator().manual_seed(self._cfg.seed)
+        train_data, val_data = random_split(
+            self._dataset, (split_train, 1 - split_train), generator
+        )
+        train_loader = DataLoader(
+            train_data, batch_size=self._cfg.batch_size, shuffle=True, num_workers=4
+        )
+        val_loader = DataLoader(
+            val_data, batch_size=self._cfg.batch_size, shuffle=False, num_workers=4
+        )
+        self.datasets = {"train": train_loader, "val": val_loader}
+
+    def _setup_callbacks(self):
+        self.callbacks = {}
+
+    def on_experiment_start(self, exp: "IExperiment") -> None:
+        super().on_experiment_start(exp)
+        self.__setup_dataloaders()
+        self._setup_model()
+        self._setup_callbacks()
+
+    def on_epoch_start(self, exp: "IExperiment") -> None:
+        if not (self._valid_done) and self.epoch_step % self._cfg.val_interval == 0:
+            self.dataset_key = "val"
+            self._valid_done = True
+        else:
+            self.dataset_key = "train"
+            self._valid_done = False
+            self.epoch_step += 1
+
+        self.dataset = self.datasets[self.dataset_key]
+        self.epoch_metrics: Dict = defaultdict(
+            lambda: dict(
+                zip(
+                    [*self.metrics.keys()] + ["loss"],
+                    [0.0] * (len(self.metrics)) + [999],
+                )
+            )
+        )
+
+    def on_dataset_start(self, exp: "IExperiment"):
+        super().on_dataset_start(exp)
+        self.dataset_metrics: Dict = defaultdict(lambda: 0.0)
+        if not self.is_train_dataset:
+            self.segmentor.eval()
+
+    def run_batch(self) -> None:
+        console_status.update(
+            f"[bold green]Running: {self.dataset_key} "
+            f"-> Epoch: {self.epoch_step}/{self.num_epochs} "
+            f"-> Batch: {self.dataset_batch_step}/{len(self.dataset)}"
+        )
+        with set_grad_enabled(self.is_train_dataset):
+            inputs, targets = self.batch
+            inputs = inputs.to(self.device)
+            targets = targets["masks"].to(self.device)
+
+            outputs = self.segmentor(inputs)
+            loss = self.criterion(outputs, targets)
+
+            if self.is_train_dataset:
+                self.optimizer.zero_grad()
+                self.optimizer.step()
+                # Log learning rate every batch
+                # self.logger.log_metrics(
+                #     {"lr": self.optimizer.param_groups[0]["lr"]}, step=self.batch_step
+                # )
+                # for scheduler in self.schedulers:
+                #     scheduler.step(
+                #         self.epoch_step + self.dataset_batch_step / len(self.dataset)
+                #     )
+        with no_grad():
+            self.batch_metrics["loss"] = loss.sum().item()
+            stats = get_stats(
+                outputs.sigmoid(), targets.long(), mode="binary", threshold=0.5
+            )
+
+            for metric_name, metric in self.metrics.items():
+                self.batch_metrics[metric_name] = metric(*stats, reduction="micro")
+
+            self.batch_metrics = {
+                k: float(v) * (inputs.size(0) / len(self.dataset))
+                for k, v in self.batch_metrics.items()
+            }
+
+    def on_epoch_end(self, exp: IExperiment) -> None:
+        super().on_epoch_end(exp)
+        # with self.logger.context_manager(self.dataset_key):
+        #     self.logger.log_metrics(self.dataset_metrics, epoch=self.epoch_step)
+
+        metrics_str = ", ".join(
+            "{}={:.3f}".format(key.title(), val)
+            for (key, val) in self.dataset_metrics.items()
+        )
+        console.log(
+            f"[bold][red]Epoch: {self.epoch_step}[/] - "
+            f"[bold cyan]{self.dataset_key}[/]"
+            f" -> [magenta]metrics: {metrics_str}[/]"
+        )
+
+    def run_epoch(self) -> None:
+        self._run_event("on_dataset_start")
+        self.run_dataset()
+        self._run_event("on_dataset_end")
+
+    def on_batch_end(self, exp: IExperiment) -> None:
+        for metric_name, metric_value in self.batch_metrics.items():
+            self.dataset_metrics[metric_name] += metric_value
+
+    def _run_local(self, local_rank: int = -1, world_size: int = 1) -> None:
+        self._local_rank, self._world_size = local_rank, world_size
+        self._run_event("on_experiment_start")
+        self.run_experiment()
+        self._run_event("on_experiment_end")
+
+    def _run(self) -> None:
+        self._run_local()
+        # self.engine.spawn(self._run_local)
 
 
 class InteractiveTest(IExperiment):

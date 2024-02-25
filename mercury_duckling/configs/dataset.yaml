@@ -14,6 +14,8 @@ data: "${datasets[${selected_data}]}"
 # General training data parameters
 seed: 42
 batch_size: 16
+num_epochs: 105
+val_interval: 4
 num_workers: 4
 split: 0.75   # train, val
 
