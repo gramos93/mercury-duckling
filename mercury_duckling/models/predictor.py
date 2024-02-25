@@ -24,16 +24,15 @@ class BasePredictor(nn.Module, ABC):
         """
         super(BasePredictor, self).__init__()
         self._config = config
-        self._current_id: int = None
+        self._current_id = None
 
     @abstractmethod
     def _setup_model(self) -> None:
         """This function should be overloaded to setup the model"""
-        self.model: nn.Module = None
         raise NotImplementedError
 
     @abstractmethod
-    def prepare_prompts(self, prompts: List[Any]) -> List[Any]:
+    def prepare_prompts(self, prompts: List[Any]) -> Dict[str, Any]:
         """
         Prepare the prompts returned by the Sampler.
         For reference see the BaseSampler class.
@@ -46,7 +45,7 @@ class BasePredictor(nn.Module, ABC):
         """
         raise NotImplementedError
 
-    def preprocess(self, inpts: Tensor) -> Tensor:
+    def preprocess(self, inpts: np.ndarray) -> np.ndarray:
         return inpts
 
     def postprocess(self, inpts: Tensor) -> Tensor:
@@ -87,7 +86,7 @@ class SamPredictor(BasePredictor):
         sam = sam_model_registry[self.__model_size](self.__sam_checkpoint)
         self.model: SP = SP(sam)
 
-    def prepare_prompts(self, prompts: List[Any]) -> List[Any]:
+    def prepare_prompts(self, prompts: List[Any]) -> Dict[str, Any]:
         """
         Prepare the prompts returned by the Sampler.
         For reference see the BaseSampler class.
@@ -113,7 +112,7 @@ class SamPredictor(BasePredictor):
         return sam_prompts
 
     def predict(
-        self, inpts: np.ndarray, prompts: List[Any], aux: Dict[str, Any], id: int
+        self, inpts: np.ndarray, prompts: List[Any], aux: np.ndarray, id: int
     ) -> Tuple[Tensor, Tensor]:
         """
         Main prediction function, usually used with no gradient.
@@ -131,6 +130,7 @@ class SamPredictor(BasePredictor):
         """
         assert id is not None, "id should not be None."
         if id != self._current_id:
+            inpts = self.preprocess(inpts)
             self.model.set_image(inpts)
             self._current_id = id
 
@@ -142,7 +142,8 @@ class SamPredictor(BasePredictor):
         # self.logger.log_metric("sam_pred_iou", scores[0])
         # Logic for returning the best mask
         self._prev_mask = logits
-        return masks[0], logits
+        masks = self.postprocess(masks[0])
+        return masks, logits
 
 
 class RITMPredictor(BasePredictor):
@@ -163,7 +164,7 @@ class RITMPredictor(BasePredictor):
         model = utils.load_is_model(self._config.checkpoint)
         self.model = get_predictor(model, "NoBRS", "cpu", prob_thresh=self._threshold)
 
-    def prepare_prompts(self, prompts: List[Any]) -> List[Any]:
+    def prepare_prompts(self, prompts: List[Any]) -> Dict[str, Any]:
         """
         Prepare the prompts returned by the Sampler.
         For reference see the BaseSampler class.
@@ -187,7 +188,7 @@ class RITMPredictor(BasePredictor):
         return clicker
 
     def predict(
-        self, inpts: np.ndarray, prompts: List[Any], aux: Dict[str, Any], id: int
+        self, inpts: np.ndarray, prompts: List[Any], aux: Any, id: int
     ) -> Tuple[Tensor, Tensor]:
         """
         Main prediction function.
@@ -207,6 +208,7 @@ class RITMPredictor(BasePredictor):
 
         h, w, c = inpts.shape
         if id != self._current_id:
+            inpts = self.preprocess(inpts)
             self.model.set_input_image(inpts)
             self._current_id = id
 
@@ -218,4 +220,5 @@ class RITMPredictor(BasePredictor):
         prompts = self.prepare_prompts(prompts)
         # By default RITM will use the previous prediction saved internally.
         logits = self.model.get_prediction(prompts, aux)
-        return logits > self._threshold, logits
+        masks = self.postprocess(logits > self._threshold)
+        return masks, logits

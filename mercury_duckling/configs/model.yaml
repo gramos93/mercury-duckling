@@ -24,3 +24,9 @@ sampler:
   method: clicker # clicker, random
   args:
     click_limit: 20
+preprocessing:
+  type: null
+  args: null
+postprocessing:
+  type: null
+  args: null

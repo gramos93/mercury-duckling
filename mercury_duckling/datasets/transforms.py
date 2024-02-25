@@ -26,6 +26,7 @@ def blobify(
     kernel = _get_kernel(blobify, type(inpt))
     return kernel(inpt)
 
+
 # TODO: Add kernel for bboxes.
 @_register_kernel_internal(blobify, tv_tensors.Mask)
 def blobify_mask_tensor(inpt: tv_tensors.Mask) -> tv_tensors.Mask:
@@ -93,7 +94,9 @@ class Colormap(Transform):
         if inpt.max() > 1.0 or inpt.min() < 0.0:
             inpt = self._call_kernel(minmax_normalize, inpt)
 
-        colored = self.cmap(inpt)  # Will be numpy array with a ghost dimension
+        colored: np.ndarray = self.cmap(
+            inpt
+        )  # Will be numpy array with a ghost dimension
         if len(colored.shape) == 4:
             return to_image(colored[0, ..., :3])
 
