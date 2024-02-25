@@ -11,12 +11,12 @@ from torch.utils.data import DataLoader, Dataset, random_split
 
 from ..models.predictor import BasePredictor
 from ..samplers import BaseSampler, sampler_register
-from ..utils import console, console_status
+from ..utils import ConsoleLogger
 
 
 class SegmentationExp(IExperiment):
     """
-    InteractiveTest is a base class for interactive segmentation experiments.
+    Segmentation Exp. is a base class for training segmentation models.
 
     Args:
             config (Dict): Configuration dictionary for the experiment.
@@ -58,7 +58,7 @@ class SegmentationExp(IExperiment):
         self.datasets = {"train": train_loader, "val": val_loader}
 
     def _setup_callbacks(self):
-        self.callbacks = {}
+        self.callbacks = {"console": ConsoleLogger(self._cfg, self)}
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         super().on_experiment_start(exp)
@@ -92,11 +92,6 @@ class SegmentationExp(IExperiment):
             self.segmentor.eval()
 
     def run_batch(self) -> None:
-        console_status.update(
-            f"[bold green]Running: {self.dataset_key} "
-            f"-> Epoch: {self.epoch_step}/{self.num_epochs} "
-            f"-> Batch: {self.dataset_batch_step}/{len(self.dataset)}"
-        )
         with set_grad_enabled(self.is_train_dataset):
             inputs, targets = self.batch
             inputs = inputs.to(self.device)
@@ -130,20 +125,10 @@ class SegmentationExp(IExperiment):
                 for k, v in self.batch_metrics.items()
             }
 
-    def on_epoch_end(self, exp: IExperiment) -> None:
-        super().on_epoch_end(exp)
-        # with self.logger.context_manager(self.dataset_key):
-        #     self.logger.log_metrics(self.dataset_metrics, epoch=self.epoch_step)
-
-        metrics_str = ", ".join(
-            "{}={:.3f}".format(key.title(), val)
-            for (key, val) in self.dataset_metrics.items()
-        )
-        console.log(
-            f"[bold][red]Epoch: {self.epoch_step}[/] - "
-            f"[bold cyan]{self.dataset_key}[/]"
-            f" -> [magenta]metrics: {metrics_str}[/]"
-        )
+    # def on_epoch_end(self, exp: IExperiment) -> None:
+    #     super().on_epoch_end(exp)
+    # with self.logger.context_manager(self.dataset_key):
+    #     self.logger.log_metrics(self.dataset_metrics, epoch=self.epoch_step)
 
     def run_epoch(self) -> None:
         self._run_event("on_dataset_start")
@@ -162,7 +147,6 @@ class SegmentationExp(IExperiment):
 
     def _run(self) -> None:
         self._run_local()
-        # self.engine.spawn(self._run_local)
 
 
 class InteractiveTest(IExperiment):
@@ -233,11 +217,6 @@ class InteractiveTest(IExperiment):
         self.batch_metrics: Dict = defaultdict(
             lambda: zeros((1, self._cfg.sampler.args.click_limit - 1))
         )
-        console_status.update(
-            f"[bold green]Running: {self.dataset_key} "
-            f"-> Epoch: {self.epoch_step}/{self.num_epochs} "
-            f"-> Batch: {self.dataset_batch_step}/{len(self.dataset)}"
-        )
 
     @no_grad()
     def run_batch(self) -> None:
@@ -267,13 +246,6 @@ class InteractiveTest(IExperiment):
             self.epoch_metrics[metric_name] += metric_value
 
     # on_dataset_end
-
-    def on_epoch_end(self, exp: IExperiment) -> None:
-        super().on_epoch_end(exp)
-        console.log(
-            f"[bold][red]Epoch: {self.epoch_step}[/] - "
-            f"[bold cyan]{self.dataset_key.upper()}[/]"
-        )
 
     def on_experiment_end(self, exp: "IExperiment") -> None:
         super().on_experiment_end(exp)

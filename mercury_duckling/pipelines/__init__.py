@@ -1,1 +1,1 @@
-from .core import InteractiveTest
+from .core import InteractiveTest, SegmentationExp

@@ -1,7 +1,8 @@
 from typing import List
 from torchvision.transforms.v2 import Compose
 
-from .console import console, console_status, config2table
+from .console import ConsoleLogger, config2table
+
 
 def get_attribute_name(self, attribute) -> List[str]:
     if isinstance(attribute, Compose):

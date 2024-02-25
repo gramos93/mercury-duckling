@@ -1,4 +1,5 @@
 # Path: mercury_duckling/configs/model.yaml
+# BASE MODEL CONFIGURATION
 models:
   SAM:
     type: interactive
@@ -19,19 +20,26 @@ models:
     threshold: 0.5
 selected_model: SAM
 model: "${models[${selected_model}]}"
+
+# SAMPLER CONFIG & PARAMS FOR INTERACTIVE MODELS.
 sampler:
   type: points    # points, boxes
   method: clicker # clicker, random
   args:
     click_limit: 20
+    
+# TRAINING PARAMS FOR SEGMENTOR MODELS
+optimizer: 
+  lr: 1e-5
+loss: 
+  mode: "binary"
+  smooth: 1.0e-12 
+
+# PRE AND POST PROCESSING FOR PIPELINES.
+# TODO: implement pre and post processing methods and registry.
 preprocessing:
   type: null
   args: null
 postprocessing:
   type: null
   args: null
-optimizer: 
-  lr: 1e-5
-loss: 
-  mode: "binary"
-  smooth: 1.0e-12 
