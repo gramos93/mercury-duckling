@@ -15,6 +15,7 @@ from .transforms import (
     MinMaxNormalization,
     ResizeByCoefficient,
     ResizeLongestSideAndPad,
+    StandardizeTarget
 )
 
 
@@ -33,6 +34,7 @@ def build_thermal(cfg: DictConfig):
                 ResizeLongestSideAndPad(target_size=cfg.target_size),
                 Colormap(colormap=cfg.colormap),
                 v2.ClampBoundingBoxes(),
+                # StandardizeTarget(cfg.model.classes),
                 v2.ToDtype(
                     {tv_tensors.Image: torch.float32, "others": None}, scale=False
                 ),
@@ -78,6 +80,7 @@ def build_segmentation(cfg: DictConfig):
                 # ResizeByCoefficient(cfg.data.coeff),
                 ResizeLongestSideAndPad(target_size=cfg.target_size),
                 v2.ClampBoundingBoxes(),
+                StandardizeTarget(cfg.model.classes),
                 v2.ToDtype(
                     {tv_tensors.Image: torch.float32, "others": None}, scale=False
                 ),
@@ -91,6 +94,7 @@ def build_segmentation(cfg: DictConfig):
                 v2.ToImage(),
                 # ResizeByCoefficient(cfg.data.coeff),
                 ResizeLongestSideAndPad(target_size=cfg.target_size),
+                StandardizeTarget(cfg.model.classes),
                 v2.ToDtype(
                     {tv_tensors.Image: torch.float32, "others": None}, scale=False
                 ),

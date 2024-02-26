@@ -42,16 +42,16 @@ def main(device, model, dataset, mode):
     cfg_base.device = device if device is not None else cfg_base.device
 
     if dataset is not None:
-        data = cfg_data.datasets.get(dataset, False)
-        if not data:
+        valid_data = cfg_data.datasets.get(dataset, False)
+        if not valid_data:
             CLI_CONSOLE.log("[bold red]Invalid dataset. Exiting.")
             return 1
         else:
-            cfg_data.selected_data = data
+            cfg_data.selected_data = dataset
 
     if model is not None:
-        model = cfg_model.models.get(model, False)
-        if not model:
+        valid_model = cfg_model.models.get(model, False)
+        if not valid_model:
             CLI_CONSOLE.log("[bold red]Invalid model. Exiting.")
             return 2
         else:

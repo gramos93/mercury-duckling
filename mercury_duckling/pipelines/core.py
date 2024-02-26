@@ -15,6 +15,19 @@ from ..samplers import BaseSampler, sampler_register
 from ..utils import ConsoleLogger
 
 
+def collate_fn(self, batch):
+    samples = []
+    targets = defaultdict(list)
+    for sample, target in batch:
+        samples.append(sample)
+        for k, v in target.items():
+            targets[k].append(v)
+        samples = stack(samples)
+    for k, v in targets.items():
+        targets[k] = stack(v) if isinstance(v[0], Tensor) else v
+    return samples, targets
+
+
 class SegmentationExp(IExperiment):
     """
     Segmentation Exp. is a base class for training segmentation models.
@@ -43,18 +56,6 @@ class SegmentationExp(IExperiment):
         self.criterion = DiceLoss(**self._cfg.loss)
         self.optimizer = AdamW(self.segmentor.parameters(), **self._cfg.optimizer)
 
-    def collate_fn(self, batch):
-        samples = []
-        targets = defaultdict(list)
-        for sample, target in batch:
-            samples.append(sample)
-            for k, v in target.items():
-                targets[k].append(v)
-            samples = stack(samples)
-        for k, v in targets.items():
-            targets[k] = stack(v) if isinstance(v[0], Tensor) else v
-        return samples, targets
-
     def __setup_dataloaders(self) -> None:
         """Setup the dataloaders for the experiment."""
         split_train = self._cfg.split
@@ -67,14 +68,14 @@ class SegmentationExp(IExperiment):
             batch_size=self._cfg.batch_size,
             shuffle=True,
             num_workers=4,
-            collate_fn=self.collate_fn,
+            collate_fn=collate_fn,
         )
         val_loader = DataLoader(
             val_data,
             batch_size=self._cfg.batch_size,
             shuffle=False,
             num_workers=4,
-            collate_fn=self.collate_fn,
+            collate_fn=collate_fn,
         )
         self.datasets = {"train": train_loader, "val": val_loader}
 
@@ -149,11 +150,6 @@ class SegmentationExp(IExperiment):
                 for k, v in self.batch_metrics.items()
             }
 
-    # def on_epoch_end(self, exp: IExperiment) -> None:
-    #     super().on_epoch_end(exp)
-    # with self.logger.context_manager(self.dataset_key):
-    #     self.logger.log_metrics(self.dataset_metrics, epoch=self.epoch_step)
-
     def run_epoch(self) -> None:
         self._run_event("on_dataset_start")
         self.run_dataset()
@@ -193,10 +189,6 @@ class InteractiveTest(IExperiment):
             "iou_score": iou_score,
         }
 
-    def __setup_logger(self) -> None:
-        # TODO: Setup cometml logger for interactive logging.
-        pass
-
     def __setup_sampler(self):
         sampler_type = self._cfg.sampler.type
         sampler_method = self._cfg.sampler.method
@@ -212,12 +204,16 @@ class InteractiveTest(IExperiment):
     def __setup_dataloaders(self) -> None:
         """Setup the dataloaders for the experiment."""
         test_loader = DataLoader(
-            self._dataset, batch_size=1, shuffle=False, num_workers=4
+            self._dataset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=4,
+            collate_fn=collate_fn,
         )
         self.datasets = {"test": test_loader}
 
     def _setup_callbacks(self):
-        self.callbacks = {}
+        self.callbacks = {ConsoleLogger(self._cfg)}
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         super().on_experiment_start(exp)
@@ -270,10 +266,6 @@ class InteractiveTest(IExperiment):
             self.epoch_metrics[metric_name] += metric_value
 
     # on_dataset_end
-
-    def on_experiment_end(self, exp: "IExperiment") -> None:
-        super().on_experiment_end(exp)
-        # TODO: print NOC metrics as table / epoch_metrics array
 
     def run_epoch(self) -> None:
         self._run_event("on_dataset_start")
