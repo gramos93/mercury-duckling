@@ -19,6 +19,11 @@ val_interval: 4
 num_workers: 4
 split: 0.75   # train, val
 
+# For testing the segmentation.
+# split: 0
+# val_interval: 1
+# num_epochs: 1
+
 # General transform parameters
 target_size: [256, 320]
 colormap: Greys

@@ -6,6 +6,7 @@ from omegaconf import DictConfig
 from segmentation_models_pytorch.losses import DiceLoss
 from segmentation_models_pytorch.metrics import f1_score, get_stats, iou_score
 from torch import Generator, no_grad, set_grad_enabled, zeros
+from torch.nn import Module
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
 
@@ -23,7 +24,7 @@ class SegmentationExp(IExperiment):
             engine (Engine): Engine to use for the experiment.
     """
 
-    def __init__(self, segmentor: BasePredictor, dataset: Dataset, config: DictConfig):
+    def __init__(self, segmentor: Module, dataset: Dataset, config: DictConfig):
         super().__init__()
         self._cfg = config
         self._dataset = dataset
@@ -58,7 +59,7 @@ class SegmentationExp(IExperiment):
         self.datasets = {"train": train_loader, "val": val_loader}
 
     def _setup_callbacks(self):
-        self.callbacks = {"console": ConsoleLogger(self._cfg, self)}
+        self.callbacks = {"console": ConsoleLogger(self._cfg)}
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         super().on_experiment_start(exp)
