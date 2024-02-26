@@ -3,13 +3,14 @@ import click
 from omegaconf import OmegaConf
 from rich.console import Console
 
-from .pipelines import InteractiveTest
+from .pipelines import build_pipeline
 from .datasets import build_segmentation, build_thermal
 from .models import build_predictor, build_segmentor
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 CLI_CONSOLE = Console(color_system="truecolor")
+
 
 def add_dir(x):
     return os.path.join(THIS_DIR, x)
@@ -54,7 +55,7 @@ def main(device, model, dataset, mode):
             CLI_CONSOLE.log("[bold red]Invalid model. Exiting.")
             return 2
         else:
-            cfg_model.selected_model= model
+            cfg_model.selected_model = model
 
     if mode in ["train", "test", "infer"]:
         cfg_base.mode = mode
@@ -75,11 +76,7 @@ def main(device, model, dataset, mode):
         else build_segmentation(cfg)
     )
     CLI_CONSOLE.log("[bold green]Pipeline built. Running experiment...")
-    exp = InteractiveTest(
-        predictor=model,
-        dataset=dataset,
-        config=cfg,
-    )
+    exp = build_pipeline(cfg, model, dataset)
     exp.run(exp)
     return 0
 

@@ -16,7 +16,7 @@ models:
     type: segmentor
     size: small
     out_indices: [8, 9, 10, 11]
-    classes: 1
+    classes: 13
 selected_model: DINOV2
 model: "${models[${selected_model}]}"
 
@@ -31,7 +31,7 @@ sampler:
 optimizer: 
   lr: 1e-5
 loss: 
-  mode: "binary"
+  mode: "multiclass"
   smooth: 1.0e-12 
 
 # PRE AND POST PROCESSING FOR PIPELINES.

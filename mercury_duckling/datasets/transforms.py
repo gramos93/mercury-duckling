@@ -42,6 +42,23 @@ class Blobify(Transform):
         return self._call_kernel(blobify, inpt)
 
 
+class StandardizeTarget(torch.nn.Module):
+    def __init__(self, classes: int) -> None:
+        super().__init__()
+        self._classes = classes
+
+    def forward(
+        self, inpt: tv_tensors.Image, target: Dict[str, Any]
+    ) -> tv_tensors.Mask:
+        h, w = query_size(target["masks"])
+        masks = torch.zeros((self._classes, h, w), dtype=torch.uint8)
+        for mask, label in zip(target["masks"], target["labels"]):
+            masks[label-1] = mask
+        
+        target["masks"] = tv_tensors.Mask(masks)
+        return inpt, target
+
+
 def one_hot(
     inpt: tv_tensors.Mask,
 ) -> tv_tensors.Mask:
@@ -211,7 +228,8 @@ class ResizeLongestSideAndPad(Transform):
         )
         return padded_target
 
-    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+    def _get_params(
+        self, flat_inputs: List[Any]) -> Dict[str, Any]:
         """
         Compute the output size given input size and target long side length.
         """

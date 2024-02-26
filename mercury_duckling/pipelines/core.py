@@ -135,7 +135,10 @@ class SegmentationExp(IExperiment):
         with no_grad():
             self.batch_metrics["loss"] = loss.sum().item()
             stats = get_stats(
-                outputs.sigmoid(), targets.long(), mode="binary", threshold=0.5
+                outputs.sigmoid(),
+                targets.long(),
+                mode=self._cfg.loss.mode,
+                threshold=0.5,
             )
 
             for metric_name, metric in self.metrics.items():
