@@ -5,7 +5,7 @@ from animus import IExperiment
 from omegaconf import DictConfig
 from segmentation_models_pytorch.losses import DiceLoss
 from segmentation_models_pytorch.metrics import f1_score, get_stats, iou_score
-from torch import Generator, no_grad, set_grad_enabled, zeros
+from torch import Generator, no_grad, set_grad_enabled, zeros, stack, Tensor
 from torch.nn import Module
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
@@ -43,6 +43,18 @@ class SegmentationExp(IExperiment):
         self.criterion = DiceLoss(**self._cfg.loss)
         self.optimizer = AdamW(self.segmentor.parameters(), **self._cfg.optimizer)
 
+    def collate_fn(self, batch):
+        samples = []
+        targets = defaultdict(list)
+        for sample, target in batch:
+            samples.append(sample)
+            for k, v in target.items():
+                targets[k].append(v)
+            samples = stack(samples)
+        for k, v in targets.items():
+            targets[k] = stack(v) if isinstance(v[0], Tensor) else v
+        return samples, targets
+
     def __setup_dataloaders(self) -> None:
         """Setup the dataloaders for the experiment."""
         split_train = self._cfg.split
@@ -51,10 +63,18 @@ class SegmentationExp(IExperiment):
             self._dataset, (split_train, 1 - split_train), generator
         )
         train_loader = DataLoader(
-            train_data, batch_size=self._cfg.batch_size, shuffle=True, num_workers=4
+            train_data,
+            batch_size=self._cfg.batch_size,
+            shuffle=True,
+            num_workers=4,
+            collate_fn=self.collate_fn,
         )
         val_loader = DataLoader(
-            val_data, batch_size=self._cfg.batch_size, shuffle=False, num_workers=4
+            val_data,
+            batch_size=self._cfg.batch_size,
+            shuffle=False,
+            num_workers=4,
+            collate_fn=self.collate_fn,
         )
         self.datasets = {"train": train_loader, "val": val_loader}
 

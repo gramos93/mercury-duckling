@@ -17,8 +17,7 @@ models:
     size: small
     out_indices: [8, 9, 10, 11]
     classes: 1
-    threshold: 0.5
-selected_model: SAM
+selected_model: DINOV2
 model: "${models[${selected_model}]}"
 
 # SAMPLER CONFIG & PARAMS FOR INTERACTIVE MODELS.

@@ -1,15 +1,15 @@
 import os
 import click
 from omegaconf import OmegaConf
+from rich.console import Console
 
 from .pipelines import InteractiveTest
 from .datasets import build_segmentation, build_thermal
-from .utils import console
 from .models import build_predictor, build_segmentor
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-
+CLI_CONSOLE = Console(color_system="truecolor")
 
 def add_dir(x):
     return os.path.join(THIS_DIR, x)
@@ -33,7 +33,7 @@ def add_dir(x):
     help="Mode of operation. One of [`train`, `test`, `infer`].",
 )
 def main(device, model, dataset, mode):
-    console.rule("[bold]Mercury Duckling Pipeline.")
+    CLI_CONSOLE.rule("[bold]Mercury Duckling Pipeline.")
     cfg_base = OmegaConf.load(add_dir("configs/base.yaml"))
     cfg_data = OmegaConf.load(add_dir("configs/dataset.yaml"))
     cfg_model = OmegaConf.load(add_dir("configs/model.yaml"))
@@ -43,7 +43,7 @@ def main(device, model, dataset, mode):
     if dataset is not None:
         data = cfg_data.datasets.get(dataset, False)
         if not data:
-            console.log("[bold red]Invalid dataset. Exiting.")
+            CLI_CONSOLE.log("[bold red]Invalid dataset. Exiting.")
             return 1
         else:
             cfg_data.selected_data = data
@@ -51,7 +51,7 @@ def main(device, model, dataset, mode):
     if model is not None:
         model = cfg_model.models.get(model, False)
         if not model:
-            console.log("[bold red]Invalid model. Exiting.")
+            CLI_CONSOLE.log("[bold red]Invalid model. Exiting.")
             return 2
         else:
             cfg_model.selected_model= model
@@ -59,11 +59,11 @@ def main(device, model, dataset, mode):
     if mode in ["train", "test", "infer"]:
         cfg_base.mode = mode
     else:
-        console.log("[bold red]Invalid mode. Exiting.")
+        CLI_CONSOLE.log("[bold red]Invalid mode. Exiting.")
         return 3
 
     cfg = OmegaConf.merge(cfg_base, cfg_data, cfg_model)
-    console.log("[bold green]Configuration generated. Building pipeline...")
+    CLI_CONSOLE.log("[bold green]Configuration generated. Building pipeline...")
     model = (
         build_predictor(cfg)
         if cfg.model.type == "interactive"
@@ -74,7 +74,7 @@ def main(device, model, dataset, mode):
         if cfg.selected_data == "thermal"
         else build_segmentation(cfg)
     )
-    console.log("[bold green]Pipeline built. Running experiment...")
+    CLI_CONSOLE.log("[bold green]Pipeline built. Running experiment...")
     exp = InteractiveTest(
         predictor=model,
         dataset=dataset,

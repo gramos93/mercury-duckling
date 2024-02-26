@@ -19,6 +19,6 @@ def build_predictor(cfg) -> BasePredictor:
 
 def build_segmentor(cfg) -> nn.Module:
     if segmentor := segmentor_registry.get(cfg.selected_model, False):
-        return segmentor(cfg.model)
+        return segmentor(**cfg.model)
     else:
         raise KeyError(f"Segmentor {cfg.selected_model} not implemented.")
