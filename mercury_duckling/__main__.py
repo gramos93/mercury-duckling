@@ -52,7 +52,7 @@ def main(device, model, dataset, mode):
         model = cfg_model.models.get(model, False)
         if not model:
             console.log("[bold red]Invalid model. Exiting.")
-            return 1
+            return 2
         else:
             cfg_model.selected_model= model
 
