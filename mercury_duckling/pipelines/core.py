@@ -1,7 +1,9 @@
 from collections import defaultdict
 from typing import Dict
 
+from accelerate import Accelerator
 from animus import IExperiment
+from animus.torch import _ddp_mean_reduce
 from omegaconf import DictConfig
 from segmentation_models_pytorch.losses import DiceLoss
 from segmentation_models_pytorch.metrics import f1_score, get_stats, iou_score
@@ -48,13 +50,18 @@ class SegmentationExp(IExperiment):
             "iou_score": iou_score,
             "fi_score": f1_score,
         }
+        self.engine = Accelerator()
 
     def _setup_model(self):
         self.segmentor._setup_model()
-        self.segmentor.to(self.device)
 
         self.criterion = DiceLoss(**self._cfg.loss)
         self.optimizer = AdamW(self.segmentor.parameters(), **self._cfg.optimizer)
+
+        self.segmentor, self.optimizer = self.engine.prepare(
+            self.segmentor,
+            self.optimizer,
+        )
 
     def __setup_dataloaders(self) -> None:
         """Setup the dataloaders for the experiment."""
@@ -77,7 +84,21 @@ class SegmentationExp(IExperiment):
             num_workers=4,
             collate_fn=collate_fn,
         )
+        train_loader, val_loader = self.engine.prepare_dataloader(
+            train_loader,
+            val_loader,
+        )
         self.datasets = {"train": train_loader, "val": val_loader}
+
+    def mean_reduce_ddp_metrics(self, metrics: Dict) -> Dict:
+        metrics = {
+            k: _ddp_mean_reduce(
+                Tensor(v, device=self.device),
+                world_size=self.state.num_processes,
+            )
+            for k, v in metrics.items()
+        }
+        return metrics
 
     def _setup_callbacks(self):
         self.callbacks = {"console": ConsoleLogger(self._cfg)}
@@ -124,7 +145,9 @@ class SegmentationExp(IExperiment):
 
             if self.is_train_dataset:
                 self.optimizer.zero_grad()
+                self.engine.backward(loss)
                 self.optimizer.step()
+                # TODO: Put this into a callback object.
                 # Log learning rate every batch
                 # self.logger.log_metrics(
                 #     {"lr": self.optimizer.param_groups[0]["lr"]}, step=self.batch_step
@@ -145,6 +168,9 @@ class SegmentationExp(IExperiment):
             for metric_name, metric in self.metrics.items():
                 self.batch_metrics[metric_name] = metric(*stats, reduction="micro")
 
+            self.batch_metrics = self.mean_reduce_ddp_metrics(
+                self.batch_metrics
+            )
             self.batch_metrics = {
                 k: float(v) * (inputs.size(0) / len(self.dataset))
                 for k, v in self.batch_metrics.items()
