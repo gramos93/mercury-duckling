@@ -3,7 +3,6 @@ from typing import Dict
 
 from accelerate import Accelerator
 from animus import IExperiment
-from animus.torch import _ddp_mean_reduce
 from omegaconf import DictConfig
 from segmentation_models_pytorch.losses import DiceLoss
 from segmentation_models_pytorch.metrics import f1_score, get_stats, iou_score
@@ -17,17 +16,17 @@ from ..samplers import BaseSampler, sampler_register
 from ..utils import ConsoleLogger
 
 
-def collate_fn(self, batch):
+def collate_fn(batch):
     samples = []
     targets = defaultdict(list)
     for sample, target in batch:
         samples.append(sample)
         for k, v in target.items():
             targets[k].append(v)
-        samples = stack(samples)
+    samples = stack(samples)
     for k, v in targets.items():
         targets[k] = stack(v) if isinstance(v[0], Tensor) else v
-    return samples, targets
+    return samples, dict(targets)
 
 
 class SegmentationExp(IExperiment):
@@ -39,7 +38,13 @@ class SegmentationExp(IExperiment):
             engine (Engine): Engine to use for the experiment.
     """
 
-    def __init__(self, segmentor: Module, dataset: Dataset, config: DictConfig):
+    def __init__(
+            self, 
+            segmentor: Module, 
+            dataset: Dataset, 
+            config: DictConfig, 
+            engine: Accelerator = Accelerator(),
+        ):
         super().__init__()
         self._cfg = config
         self._dataset = dataset
@@ -48,13 +53,11 @@ class SegmentationExp(IExperiment):
         self.num_epochs = self._cfg.num_epochs
         self.metrics = {
             "iou_score": iou_score,
-            "fi_score": f1_score,
+            "f1_score": f1_score,
         }
-        self.engine = Accelerator()
+        self.engine = engine
 
     def _setup_model(self):
-        self.segmentor._setup_model()
-
         self.criterion = DiceLoss(**self._cfg.loss)
         self.optimizer = AdamW(self.segmentor.parameters(), **self._cfg.optimizer)
 
@@ -84,21 +87,11 @@ class SegmentationExp(IExperiment):
             num_workers=4,
             collate_fn=collate_fn,
         )
-        train_loader, val_loader = self.engine.prepare_dataloader(
+        train_loader, val_loader = self.engine.prepare(
             train_loader,
             val_loader,
         )
         self.datasets = {"train": train_loader, "val": val_loader}
-
-    def mean_reduce_ddp_metrics(self, metrics: Dict) -> Dict:
-        metrics = {
-            k: _ddp_mean_reduce(
-                Tensor(v, device=self.device),
-                world_size=self.state.num_processes,
-            )
-            for k, v in metrics.items()
-        }
-        return metrics
 
     def _setup_callbacks(self):
         self.callbacks = {"console": ConsoleLogger(self._cfg)}
@@ -108,6 +101,7 @@ class SegmentationExp(IExperiment):
         self.__setup_dataloaders()
         self._setup_model()
         self._setup_callbacks()
+        self._valid_done = True
 
     def on_epoch_start(self, exp: "IExperiment") -> None:
         if not (self._valid_done) and self.epoch_step % self._cfg.val_interval == 0:
@@ -136,17 +130,15 @@ class SegmentationExp(IExperiment):
 
     def run_batch(self) -> None:
         with set_grad_enabled(self.is_train_dataset):
-            inputs, targets = self.batch
-            inputs = inputs.to(self.device)
-            targets = targets["masks"].to(self.device)
+            inputs, target_info = self.batch
+            targets = target_info["masks"]
 
             outputs = self.segmentor(inputs)
-            loss = self.criterion(outputs, targets)
-
+            loss = self.criterion(outputs, targets.long())
             if self.is_train_dataset:
-                self.optimizer.zero_grad()
                 self.engine.backward(loss)
                 self.optimizer.step()
+                self.optimizer.zero_grad()
                 # TODO: Put this into a callback object.
                 # Log learning rate every batch
                 # self.logger.log_metrics(
@@ -159,18 +151,20 @@ class SegmentationExp(IExperiment):
         with no_grad():
             self.batch_metrics["loss"] = loss.sum().item()
             stats = get_stats(
-                outputs.sigmoid(),
+                outputs.argmax(dim=1),
                 targets.long(),
                 mode=self._cfg.loss.mode,
-                threshold=0.5,
+                num_classes=self._cfg.model.classes
+                # threshold=0.5,
             )
-
             for metric_name, metric in self.metrics.items():
-                self.batch_metrics[metric_name] = metric(*stats, reduction="micro")
+                scores = self.engine.reduce(
+                    metric(*stats, reduction="macro").cuda(),
+                    reduction="mean"
+                )
+                self.batch_metrics[metric_name] = scores
 
-            self.batch_metrics = self.mean_reduce_ddp_metrics(
-                self.batch_metrics
-            )
+            # self.batch_metrics = self.mean_reduce_ddp_metrics(self.batch_metrics)
             self.batch_metrics = {
                 k: float(v) * (inputs.size(0) / len(self.dataset))
                 for k, v in self.batch_metrics.items()

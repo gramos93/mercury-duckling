@@ -1,6 +1,5 @@
 from functools import partial
-from typing import Dict, Any, List
-from omegaconf import DictConfig
+from typing import Any, List
 import torch.nn as nn
 from torch import hub, cat
 from torch.nn.functional import interpolate
@@ -9,7 +8,7 @@ from torch.nn.functional import interpolate
 class DinoV2(nn.Module):
     def __init__(
             self,
-            size: str = "small",
+            size: str = "large",
             classes: int = 2,
             out_indices: List[int] = [8, 9, 10, 11],    
             **kwargs

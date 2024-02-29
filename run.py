@@ -3,9 +3,9 @@ import click
 from omegaconf import OmegaConf
 from rich.console import Console
 
-from .pipelines import build_pipeline
-from .datasets import build_segmentation, build_thermal
-from .models import build_predictor, build_segmentor
+from mercury_duckling.pipelines import build_pipeline
+from mercury_duckling.datasets import build_segmentation, build_thermal
+from mercury_duckling.models import build_predictor, build_segmentor
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -13,7 +13,7 @@ CLI_CONSOLE = Console(color_system="truecolor")
 
 
 def add_dir(x):
-    return os.path.join(THIS_DIR, x)
+    return os.path.join(THIS_DIR, "mercury_duckling", x)
 
 
 @click.command()
@@ -77,7 +77,7 @@ def main(device, model, dataset, mode):
     )
     CLI_CONSOLE.log("[bold green]Pipeline built. Running experiment...")
     exp = build_pipeline(cfg, model, dataset)
-    exp.run(exp)
+    exp.run()
     return 0
 
 

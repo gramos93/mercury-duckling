@@ -58,12 +58,12 @@ def build_thermal(cfg: DictConfig):
     return wrap_dataset_for_transforms_v2(
         ThermalDataset(
             root=cfg.data.root,
-            annFile=os.path.join(cfg.data.root, "annotations", cfg.data.ann_file),
+            annFile=os.path.join(cfg.data.root, cfg.data.ann_file),
             transform=transform,
             target_transform=target_transform,
             transforms=transforms,
         ),
-        target_keys=["masks", "boxes", "image_id" "labels"],
+        target_keys=["masks", "boxes", "image_id", "labels"],
     )
 
 
@@ -74,15 +74,16 @@ def build_segmentation(cfg: DictConfig):
         transforms = v2.Compose(
             [
                 v2.ToImage(),
+                ResizeLongestSideAndPad(target_size=cfg.target_size),
                 v2.RandomZoomOut(fill={tv_tensors.Image: (0), "others": 0}),
                 v2.RandomIoUCrop(),
                 v2.RandomHorizontalFlip(p=0.7),
                 # ResizeByCoefficient(cfg.data.coeff),
-                ResizeLongestSideAndPad(target_size=cfg.target_size),
+                v2.Resize(size = cfg.crop_size),
                 v2.ClampBoundingBoxes(),
                 StandardizeTarget(cfg.model.classes),
                 v2.ToDtype(
-                    {tv_tensors.Image: torch.float32, "others": None}, scale=False
+                    {tv_tensors.Image: torch.float32, "others": None}, scale=True
                 ),
             ]
         )
@@ -96,17 +97,17 @@ def build_segmentation(cfg: DictConfig):
                 ResizeLongestSideAndPad(target_size=cfg.target_size),
                 StandardizeTarget(cfg.model.classes),
                 v2.ToDtype(
-                    {tv_tensors.Image: torch.float32, "others": None}, scale=False
+                    {tv_tensors.Image: torch.float32, "others": None}, scale=True
                 ),
             ]
         )
     return wrap_dataset_for_transforms_v2(
         CocoDetection(
             root=cfg.data.root,
-            annFile=os.path.join(cfg.data.root, "annotations", cfg.data.ann_file),
+            annFile=os.path.join(cfg.data.root, cfg.data.ann_file),
             transform=transform,
             target_transform=target_transform,
             transforms=transforms,
         ),
-        target_keys=["masks", "boxes", "image_id" "labels"],
+        target_keys=["masks", "boxes", "image_id", "labels"],
     )

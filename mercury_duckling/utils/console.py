@@ -14,8 +14,9 @@ class ConsoleLogger(ICallback):
         self._console_status = Status("[bold green]Running", spinner="point")
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
-        table_config = config2table(OmegaConf.to_container(self._cfg))
-        self._console.log(table_config)
+        # table_config = config2table(OmegaConf.to_container(self._cfg))
+        # self._console.log(table_config)
+        pass
 
     def on_batch_start(self, exp: IExperiment):
         # This function will run AFTER the exp.on_batch_start
@@ -45,14 +46,14 @@ class ConsoleLogger(ICallback):
 def config2table(config):
     config_table = Table(title="Experiment Configuration")
     normed_config = json_normalize(config, sep=" ")
-    normed_config.add_column(
+    config_table.add_column(
         "[cyan]Parameter",
         justify="left",
         style="cyan",
         no_wrap=True,
         header_style="bold",
     )
-    normed_config.add_column(
+    config_table.add_column(
         "[magenta]Value",
         justify="center",
         style="magenta",
@@ -60,7 +61,7 @@ def config2table(config):
         header_style="bold",
     )
 
-    for param, value in config.items():
+    for param, value in normed_config.items():
         config_table.add_row(param.title(), str(value[0]))
 
     return config_table

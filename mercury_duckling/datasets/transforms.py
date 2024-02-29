@@ -43,9 +43,10 @@ class Blobify(Transform):
 
 
 class StandardizeTarget(torch.nn.Module):
-    def __init__(self, classes: int) -> None:
+    def __init__(self, classes: int, out_one_hot: bool = False) -> None:
         super().__init__()
         self._classes = classes
+        self._one_hot = out_one_hot
 
     def forward(
         self, inpt: tv_tensors.Image, target: Dict[str, Any]
@@ -55,7 +56,10 @@ class StandardizeTarget(torch.nn.Module):
         for mask, label in zip(target["masks"], target["labels"]):
             masks[label-1] = mask
         
-        target["masks"] = tv_tensors.Mask(masks)
+        target["masks"] = (
+            tv_tensors.Mask(masks) if self._one_hot 
+            else tv_tensors.Mask(masks.sum(dim=0))
+        )
         return inpt, target
 
 
@@ -235,7 +239,7 @@ class ResizeLongestSideAndPad(Transform):
         """
         oldh, oldw = query_size(flat_inputs)
         size_idx = np.argmax([oldh, oldw])
-        scale = self.target_size[size_idx] * 1.0 / max(oldh, oldw)
+        scale = self.target_size[int(size_idx)] * 1.0 / max(oldh, oldw)
         newh, neww = oldh * scale, oldw * scale
         neww = int(neww + 0.5)
         newh = int(newh + 0.5)
