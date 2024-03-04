@@ -6,7 +6,7 @@ datasets:
     type: thermal
   ape:
     root: "../data/merged_dataset_delam_ape"
-    ann_file: delamination.json
+    ann_file: annotations/delamination.json
     type: rgb
   driving:
     root: "../data/BigThermal/Frieburg_Thermal/ImagesRGB"
@@ -17,7 +17,7 @@ data: "${datasets[${selected_data}]}"
 
 # General training data parameters
 seed: 42
-batch_size: 16
+batch_size: 32
 num_epochs: 105
 val_interval: 4
 num_workers: 4

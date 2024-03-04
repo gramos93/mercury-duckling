@@ -74,14 +74,12 @@ def build_segmentation(cfg: DictConfig):
         transforms = v2.Compose(
             [
                 v2.ToImage(),
-                ResizeLongestSideAndPad(target_size=cfg.target_size),
                 v2.RandomZoomOut(fill={tv_tensors.Image: (0), "others": 0}),
                 v2.RandomIoUCrop(),
                 v2.RandomHorizontalFlip(p=0.7),
                 # ResizeByCoefficient(cfg.data.coeff),
-                # v2.Resize(size = cfg.crop_size),
+                ResizeLongestSideAndPad(target_size=cfg.target_size),
                 v2.ClampBoundingBoxes(),
-                # StandardizeTarget(cfg.model.classes),
                 v2.ToDtype(
                     {tv_tensors.Image: torch.float32, "others": None}, scale=True
                 ),

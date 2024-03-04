@@ -212,11 +212,13 @@ class ResizeLongestSideAndPad(Transform):
         """
         # Expects an image in BCHW format. May not exactly match apply_image.
         h, w = params["height"], params["width"]
+        min_size = min(self.target_size)
+        max_size = max(self.target_size)
         resized_target = self._call_kernel(
             resize,
             inpt,
-            size=min(self.target_size),
-            max_size=max(self.target_size),
+            size=min_size,
+            max_size=max_size if min_size != max_size else None,
             interpolation=self.interpolation,
             antialias=self.antialias,
         )
