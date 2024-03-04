@@ -159,7 +159,7 @@ class SegmentationExp(IExperiment):
             )
             for metric_name, metric in self.metrics.items():
                 scores = self.engine.reduce(
-                    metric(*stats, reduction="macro").cuda(),
+                    metric(*stats, reduction="micro").cuda(),
                     reduction="mean"
                 )
                 self.batch_metrics[metric_name] = scores

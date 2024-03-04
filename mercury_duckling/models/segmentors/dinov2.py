@@ -9,7 +9,7 @@ class DinoV2(nn.Module):
     def __init__(
             self,
             size: str = "large",
-            classes: int = 2,
+            classes: int = 1,
             out_indices: List[int] = [8, 9, 10, 11],    
             **kwargs
         ) -> None:

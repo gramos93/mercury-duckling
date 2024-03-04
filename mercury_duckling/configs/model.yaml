@@ -14,9 +14,9 @@ models:
     checkpoint: checkpoints/InterSegSynthFT.pth
   DINOV2:
     type: segmentor
-    size: small
+    size: base
     out_indices: [8, 9, 10, 11]
-    classes: 13
+    classes: 1
 selected_model: DINOV2
 model: "${models[${selected_model}]}"
 
@@ -28,10 +28,10 @@ sampler:
     click_limit: 20
     
 # TRAINING PARAMS FOR SEGMENTOR MODELS
-optimizer: 
+optimizer:
   lr: 1e-5
 loss: 
-  mode: "multiclass"
+  mode: "binary"
   smooth: 1.0e-12 
 
 # PRE AND POST PROCESSING FOR PIPELINES.

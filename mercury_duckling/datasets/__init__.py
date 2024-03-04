@@ -79,9 +79,9 @@ def build_segmentation(cfg: DictConfig):
                 v2.RandomIoUCrop(),
                 v2.RandomHorizontalFlip(p=0.7),
                 # ResizeByCoefficient(cfg.data.coeff),
-                v2.Resize(size = cfg.crop_size),
+                # v2.Resize(size = cfg.crop_size),
                 v2.ClampBoundingBoxes(),
-                StandardizeTarget(cfg.model.classes),
+                # StandardizeTarget(cfg.model.classes),
                 v2.ToDtype(
                     {tv_tensors.Image: torch.float32, "others": None}, scale=True
                 ),
