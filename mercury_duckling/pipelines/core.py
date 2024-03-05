@@ -154,7 +154,9 @@ class SegmentationExp(IExperiment):
                 #     )
         with no_grad():
             self.batch_metrics["loss"] = loss
+            self.batch_metrics["loss"] = loss
             stats = get_stats(
+                outputs.sigmoid(),
                 outputs.sigmoid(),
                 targets.long(),
                 mode=self._cfg.loss.mode,
@@ -164,6 +166,8 @@ class SegmentationExp(IExperiment):
             for metric_name, metric in self.metrics.items():
                 self.batch_metrics[metric_name] = metric(*stats, reduction="micro").cuda()
             
+                self.batch_metrics[metric_name] = metric(*stats, reduction="micro").cuda()
+            
             self.batch_metrics = {
                 k: self.engine.reduce(
                     v * (inputs.size(0) / len(self.dataset.dataset)),
@@ -171,6 +175,7 @@ class SegmentationExp(IExperiment):
                 ).item()
                 for k, v in self.batch_metrics.items()
             }
+        
         
     def run_epoch(self) -> None:
         self._run_event("on_dataset_start")
