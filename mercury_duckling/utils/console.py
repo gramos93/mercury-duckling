@@ -20,6 +20,10 @@ class ConsoleLogger(ICallback):
 
     def on_batch_start(self, exp: IExperiment):
         # This function will run AFTER the exp.on_batch_start
+        if hasattr(exp, "engine"):
+            if not exp.engine.is_local_main_process:
+                return
+
         self._console_status.update(
             f"[bold green]Running: {exp.dataset_key} "
             f"-> Epoch: {exp.epoch_step}/{exp.num_epochs} "
@@ -27,6 +31,10 @@ class ConsoleLogger(ICallback):
         )
 
     def on_epoch_end(self, exp: IExperiment) -> None:
+        if hasattr(exp, "engine"):
+            if not exp.engine.is_local_main_process:
+                return
+            
         # This function will run BEFORE the exp.on_batch_start
         metrics_str = ", ".join(
             "{}={:.3f}".format(key.title(), val)

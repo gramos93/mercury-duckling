@@ -14,10 +14,26 @@ models:
     checkpoint: checkpoints/InterSegSynthFT.pth
   DINOV2:
     type: segmentor
-    size: base
-    out_indices: [8, 9, 10, 11]
-    classes: 1
-selected_model: DINOV2
+    args:
+      size: base
+      out_indices: [8, 9, 10, 11]
+      classes: 1
+  Unet++:
+    type: segmentor
+    args:
+      encoder_name: "resnet34"
+      encoder_weights: "imagenet"
+      decoder_attention_type: "scse"
+      in_channels: 3
+      classes: 1
+  DeepLabV3+:
+    type: segmentor
+    args:
+      encoder_name: "resnet34"
+      encoder_weights: "imagenet"
+      in_channels: 3
+      classes: 1
+selected_model: Unet++
 model: "${models[${selected_model}]}"
 
 # SAMPLER CONFIG & PARAMS FOR INTERACTIVE MODELS.
@@ -29,10 +45,10 @@ sampler:
     
 # TRAINING PARAMS FOR SEGMENTOR MODELS
 optimizer:
-  lr: 1e-5
+  lr: 1e-4
 loss: 
   mode: "binary"
-  smooth: 1.0e-12 
+  from_logits: true 
 
 # PRE AND POST PROCESSING FOR PIPELINES.
 # TODO: implement pre and post processing methods and registry.

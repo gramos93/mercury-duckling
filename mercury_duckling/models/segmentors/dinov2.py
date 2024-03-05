@@ -11,7 +11,6 @@ class DinoV2(nn.Module):
             size: str = "large",
             classes: int = 1,
             out_indices: List[int] = [8, 9, 10, 11],    
-            **kwargs
         ) -> None:
         super().__init__()
         backbone_archs = {
