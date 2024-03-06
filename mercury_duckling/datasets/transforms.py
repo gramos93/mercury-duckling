@@ -32,23 +32,30 @@ def clahe(
 
 @_register_kernel_internal(clahe, tv_tensors.Image)
 def clahe_image(inpt: tv_tensors.Image, params: Dict[str, Any]) -> tv_tensors.Image:
-    inpt = inpt.permute(1, 2, 0).numpy()
+    inpt: np.ndarray = inpt.permute(1, 2, 0).numpy()
     # Make sure we have pixel values in the range [0, 255]
     # before passing to the CLAHE algorithm
     if inpt.max() <= 1.0 and inpt.min() >= 0.0:
         inpt = inpt * 255
-        
+
+    if inpt.shape[-1] == 1 and inpt.ndim > 2:
+        inpt = inpt.squeeze(-1)
+    else:
+        raise NotImplementedError("Not implemented for multi-channel images.")
+    
     inpt = clahe_enhancement(
-        inpt, params["clip_limit"], params["nrBins"], params["nrX"], params["nrY"]
+        inpt.astype(np.uint8), params["clip_limit"], params["nrBins"], params["nrX"], params["nrY"]
     )
-    inpt = tv_tensors.Image(inpt)
+    # Convert back to torch tensor with 1 channel at position 0.
+    inpt = tv_tensors.Image(inpt, dtype=torch.float32)
+
     return inpt
 
 
 class Clahe(Transform):
     def __init__(
         self,
-        clip_limit: float = 20.,
+        clip_limit: float = 20.0,
         nrBins: int = 128,
         nrX: int = 4,
         nrY: int = 4,
@@ -73,7 +80,7 @@ class Clahe(Transform):
     def _transform(
         self, inpt: tv_tensors.Image, params: Dict[str, Any]
     ) -> tv_tensors.Image:
-        return self._call_kernel(clahe, inpt, params)
+        return self._call_kernel(clahe, inpt, self.params)
 
 
 def blobify(

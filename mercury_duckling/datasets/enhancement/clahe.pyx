@@ -26,7 +26,7 @@ def np_clahe(img, clipLimit, nrBins=128, nrX=0, nrY=0):
     :param nrX: Number of contextual regions in X direction
     :param nrY: Number of contextual regions in Y direction
     """
-    h, w = img.shape
+    h, w = img.shape[:2]
     if clipLimit == 1:
         return
     nrBins = max(nrBins, 128)
