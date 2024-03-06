@@ -237,10 +237,10 @@ class InteractiveTest(IExperiment):
             num_workers=4,
             collate_fn=collate_fn,
         )
-        self.datasets = {"test": test_loader}
+        self.dataset = test_loader
 
     def _setup_callbacks(self):
-        self.callbacks = {ConsoleLogger(self._cfg)}
+        self.callbacks = {"logger": ConsoleLogger(self._cfg)}
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         super().on_experiment_start(exp)
@@ -251,18 +251,17 @@ class InteractiveTest(IExperiment):
 
     def on_epoch_start(self, exp: "IExperiment") -> None:
         self.epoch_metrics: Dict = defaultdict(
-            lambda: zeros((1, self._cfg.sampler.args.click_limit - 1))
+            lambda: zeros((1, self._cfg.sampler.args.click_limit))
         )
 
     def on_dataset_start(self, exp: "IExperiment"):
-        super().on_dataset_start(exp)
         self.sampler.is_sampling = True
 
     # on_batch_start
     def on_batch_start(self, exp: IExperiment):
         super().on_batch_start(exp)
         self.batch_metrics: Dict = defaultdict(
-            lambda: zeros((1, self._cfg.sampler.args.click_limit - 1))
+            lambda: zeros((1, self._cfg.sampler.args.click_limit))
         )
 
     @no_grad()
@@ -270,6 +269,8 @@ class InteractiveTest(IExperiment):
         inputs, targets = self.batch
         id = targets["image_id"]
 
+        # The targets["masks"] shape is [B, Blobs, H, W] and we need [Blobs, C, H, W]
+        targets["masks"] = targets["masks"].permute(1, 0, 2, 3).squeeze(1)
         for target in targets["masks"]:
             outputs = None
             aux = None
@@ -284,13 +285,15 @@ class InteractiveTest(IExperiment):
                 # NOTE: This metric calculation is not the same as NOCs.
                 for metric_name, metric in self.metrics.items():
                     score = metric(*stats, reduction="micro")
-                    self.batch_metrics[metric_name][click_step](
-                        float(score.item()) / len(self.dataset)
+                    self.batch_metrics[metric_name][0, click_step] += (
+                        float(score.item()) / len(targets["masks"])
                     )
 
     def on_batch_end(self, exp: IExperiment) -> None:
         for metric_name, metric_value in self.batch_metrics.items():
-            self.epoch_metrics[metric_name] += metric_value
+            self.epoch_metrics[metric_name] += (
+                metric_value / len(self.dataset.dataset)
+            )
 
     # on_dataset_end
 

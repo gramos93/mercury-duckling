@@ -33,7 +33,7 @@ models:
       encoder_weights: "imagenet"
       in_channels: 3
       classes: 1
-selected_model: Unet++
+selected_model: SAM
 model: "${models[${selected_model}]}"
 
 # SAMPLER CONFIG & PARAMS FOR INTERACTIVE MODELS.

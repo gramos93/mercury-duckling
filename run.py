@@ -31,7 +31,7 @@ def add_dir(x):
 @click.option(
     "--mode",
     default="train",
-    help="Mode of operation. One of [`train`, `test`, `infer`].",
+    help="Mode of operation. One of [`train`, `test`].",
 )
 def main(device, model, dataset, mode):
     CLI_CONSOLE.rule("[bold]Mercury Duckling Pipeline.")
@@ -57,7 +57,7 @@ def main(device, model, dataset, mode):
         else:
             cfg_model.selected_model = model
 
-    if mode in ["train", "test", "infer"]:
+    if mode in ["train", "test"]:
         cfg_base.mode = mode
     else:
         CLI_CONSOLE.log("[bold red]Invalid mode. Exiting.")

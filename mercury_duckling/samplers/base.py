@@ -35,7 +35,6 @@ class BaseSampler:
         ], "Invalid type. Must be one of 'point' or 'bbox'."
 
         self._reset()
-        self._mask = mask.astype(bool)
         self._region = self.prepare_mask(mask)
         self._outs = outs
         self._type = type
@@ -84,7 +83,8 @@ class BaseSampler:
     def prepare_mask(self, mask):
         if isinstance(mask, Tensor):
             mask = mask.cpu().numpy()
-
+        
+        self._mask = mask
         region = regionprops(mask)[0]
         return region
 

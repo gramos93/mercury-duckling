@@ -2,22 +2,18 @@
 datasets:
   thermal:
     root: "../data/merged_dataset_delam_thm"
-    ann_file: delamination.json
+    ann_file: annotations/delamination.json
     type: thermal
   ape:
     root: "../data/merged_dataset_delam_ape"
     ann_file: annotations/delamination.json
     type: rgb
-  driving:
-    root: "../data/BigThermal/Frieburg_Thermal/ImagesRGB"
-    ann_file: ../driving.json
-    type: rgb
-selected_data: ape
+selected_data: thermal
 data: "${datasets[${selected_data}]}"
 
 # General training data parameters
 seed: 42
-batch_size: 32
+batch_size: 16
 num_epochs: 105
 val_interval: 4
 num_workers: 4
@@ -30,5 +26,5 @@ split: 0.75   # train, val
 
 # General transform parameters
 target_size: [256, 320] # if target is not the same size as the images
-crop_size: [266, 322] # if same "${target_size}"
-colormap: Greys
+crop_size: ${target_size} # if not used "${target_size}"
+colormap: Greys # turbo, inferno, greys

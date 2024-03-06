@@ -129,7 +129,14 @@ class SamPredictor(BasePredictor):
                 inputs.
         """
         assert id is not None, "id should not be None."
+
         if id != self._current_id:
+            # Basically if input comes from DataLoader.
+            if isinstance(inpts, Tensor):
+                inpts = inpts.squeeze(0).permute(1, 2, 0).numpy()
+            if inpts.max() <= 1.:
+                inpts = (inpts * 255).astype(np.uint8)
+
             inpts = self.preprocess(inpts)
             self.model.set_image(inpts)
             self._current_id = id
@@ -143,7 +150,8 @@ class SamPredictor(BasePredictor):
         # Logic for returning the best mask
         self._prev_mask = logits
         masks = self.postprocess(masks[0])
-        return masks, logits
+        
+        return torch.tensor(masks, dtype=torch.uint8), logits
 
 
 class RITMPredictor(BasePredictor):

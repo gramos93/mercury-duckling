@@ -1,5 +1,6 @@
 from typing import Tuple
 import numpy as np
+from torch import Tensor
 from cv2 import distanceTransform, DIST_L2
 
 from .base import BaseSampler
@@ -96,16 +97,32 @@ class ClickerSampler(BaseSampler):
             list: List of promtps for the model to use. 
         """
         self._reset()
-        self._gt_mask = mask.astype(bool)
+        if isinstance(mask, Tensor):
+            mask = mask.cpu().numpy()
+
+        self._gt_mask = self.prepare_mask(mask)
         self.not_clicked_map = np.ones_like(self._gt_mask, dtype=bool)
-        self._outs = np.zeros_like(mask) if outs is None else outs.astype(bool)
+        self._outs = np.zeros_like(self._gt_mask) if outs is None else outs.astype(bool)
         while len(self.prompts) < self._click_limit:
-            self.prompts.append(self._sample_points(self._outs))
+            self.prompts.append(self._sample_points(self._outs, padding=False))
             yield self.prompts
     
     def set_outputs(self, outs):
-        self._outs = outs.astype(bool)
+        self._outs = self.prepare_mask(outs)
     
+    def prepare_mask(self, mask):
+        if isinstance(mask, Tensor):
+            mask = mask.cpu().numpy()
+
+        if mask.ndim > 2:
+            single_dim = np.argwhere(np.array(mask.shape) == 1)
+            if not single_dim.size == 1:
+                raise ValueError("Input mask dims must de [1, H, W] or [H, W].")
+            
+            mask = mask.squeeze(single_dim.item())
+        
+        return mask.astype(bool)
+
     def _sample_points(self, pred_mask, padding=True):
         fn_mask = np.logical_and(self._gt_mask, np.logical_not(pred_mask))
         fp_mask = np.logical_and(np.logical_not(self._gt_mask), pred_mask)
