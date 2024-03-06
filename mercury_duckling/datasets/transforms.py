@@ -16,6 +16,65 @@ from torchvision.transforms.v2.functional._misc import (
 )
 from torchvision.utils import _log_api_usage_once
 
+from .clahe import np_clahe as clahe_enhancement
+
+
+def clahe(
+    inpt: torch.Tensor,
+    params: Dict[str, Any],
+) -> torch.Tensor:
+    """See :class:`Clahe` for details."""
+    _log_api_usage_once(clahe)
+
+    kernel = _get_kernel(clahe, type(inpt), params)
+    return kernel(inpt)
+
+
+@_register_kernel_internal(clahe, tv_tensors.Image)
+def clahe_image(inpt: tv_tensors.Image, params: Dict[str, Any]) -> tv_tensors.Image:
+    inpt = inpt.permute(1, 2, 0).numpy()
+    # Make sure we have pixel values in the range [0, 255]
+    # before passing to the CLAHE algorithm
+    if inpt.max() <= 1.0 and inpt.min() >= 0.0:
+        inpt = inpt * 255
+        
+    inpt = clahe_enhancement(
+        inpt, params["clip_limit"], params["nrBins"], params["nrX"], params["nrY"]
+    )
+    inpt = tv_tensors.Image(inpt)
+    return inpt
+
+
+class Clahe(Transform):
+    def __init__(
+        self,
+        clip_limit: float = 20.,
+        nrBins: int = 128,
+        nrX: int = 4,
+        nrY: int = 4,
+    ) -> None:
+        """CLAHE algorithm implementation
+
+        Input
+            inpt: Input image with pixel values in the range [0, 1]
+        params
+            clipLimit: Normalized clipLimit. Higher value gives more contrast
+            nrBins: Number of gray level bins for histogram("dynamic range")
+            nrX: Number of contextual regions in X direction
+            nrY: Number of contextual regions in Y direction
+        """
+        super().__init__()
+        self.params = {}
+        self.params["clip_limit"] = clip_limit
+        self.params["nrBins"] = nrBins
+        self.params["nrX"] = nrX
+        self.params["nrY"] = nrY
+
+    def _transform(
+        self, inpt: tv_tensors.Image, params: Dict[str, Any]
+    ) -> tv_tensors.Image:
+        return self._call_kernel(clahe, inpt, params)
+
 
 def blobify(
     inpt: torch.Tensor,
@@ -54,10 +113,11 @@ class StandardizeTarget(torch.nn.Module):
         h, w = query_size(target["masks"])
         masks = torch.zeros((self._classes, h, w), dtype=torch.uint8)
         for mask, label in zip(target["masks"], target["labels"]):
-            masks[label-1] = mask
-        
+            masks[label - 1] = mask
+
         target["masks"] = (
-            tv_tensors.Mask(masks) if self._one_hot 
+            tv_tensors.Mask(masks)
+            if self._one_hot
             else tv_tensors.Mask(masks.sum(dim=0))
         )
         return inpt, target
@@ -234,8 +294,7 @@ class ResizeLongestSideAndPad(Transform):
         )
         return padded_target
 
-    def _get_params(
-        self, flat_inputs: List[Any]) -> Dict[str, Any]:
+    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
         """
         Compute the output size given input size and target long side length.
         """

@@ -12,6 +12,7 @@ from .transforms import (
     Blobify,
     OneHotEncodeFromBlobs,
     Colormap,
+    Clahe,
     MinMaxNormalization,
     ResizeByCoefficient,
     ResizeLongestSideAndPad,
