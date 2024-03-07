@@ -39,16 +39,14 @@ class SegmentationExp(IExperiment):
     """
 
     def __init__(
-            self, 
-            segmentor: Module, 
-            dataset: Dataset, 
-            config: DictConfig, 
-            engine: Accelerator = Accelerator(
-                kwargs_handlers=[DistributedDataParallelKwargs(
-                    find_unused_parameters=True
-                )]
-            ),
-        ):
+        self,
+        segmentor: Module,
+        dataset: Dataset,
+        config: DictConfig,
+        engine: Accelerator = Accelerator(
+            kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)]
+        ),
+    ):
         super().__init__()
         self._cfg = config
         self._dataset = dataset
@@ -157,26 +155,27 @@ class SegmentationExp(IExperiment):
             self.batch_metrics["loss"] = loss
             stats = get_stats(
                 outputs.sigmoid(),
-                outputs.sigmoid(),
                 targets.long(),
                 mode=self._cfg.loss.mode,
                 threshold=0.5,
                 # num_classes=self._cfg.model.classes,
             )
             for metric_name, metric in self.metrics.items():
-                self.batch_metrics[metric_name] = metric(*stats, reduction="micro").cuda()
-            
-                self.batch_metrics[metric_name] = metric(*stats, reduction="micro").cuda()
-            
+                self.batch_metrics[metric_name] = metric(
+                    *stats, reduction="micro"
+                ).cuda()
+
+                self.batch_metrics[metric_name] = metric(
+                    *stats, reduction="micro"
+                ).cuda()
+
             self.batch_metrics = {
                 k: self.engine.reduce(
-                    v * (inputs.size(0) / len(self.dataset.dataset)),
-                    "sum"
+                    v * (inputs.size(0) / len(self.dataset.dataset)), "sum"
                 ).item()
                 for k, v in self.batch_metrics.items()
             }
-        
-        
+
     def run_epoch(self) -> None:
         self._run_event("on_dataset_start")
         self.run_dataset()
@@ -285,15 +284,13 @@ class InteractiveTest(IExperiment):
                 # NOTE: This metric calculation is not the same as NOCs.
                 for metric_name, metric in self.metrics.items():
                     score = metric(*stats, reduction="micro")
-                    self.batch_metrics[metric_name][0, click_step] += (
-                        float(score.item()) / len(targets["masks"])
-                    )
+                    self.batch_metrics[metric_name][0, click_step] += float(
+                        score.item()
+                    ) / len(targets["masks"])
 
     def on_batch_end(self, exp: IExperiment) -> None:
         for metric_name, metric_value in self.batch_metrics.items():
-            self.epoch_metrics[metric_name] += (
-                metric_value / len(self.dataset.dataset)
-            )
+            self.epoch_metrics[metric_name] += metric_value / len(self.dataset.dataset)
 
     # on_dataset_end
 

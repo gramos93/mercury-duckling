@@ -1,9 +1,12 @@
+import os
+import time
 from animus import ICallback, IExperiment
-from omegaconf import DictConfig, OmegaConf
+from comet_ml import Experiment
+from omegaconf import DictConfig
+from pandas import json_normalize
 from rich.console import Console
 from rich.status import Status
 from rich.table import Table
-from pandas import json_normalize
 
 
 class ConsoleLogger(ICallback):
@@ -13,12 +16,43 @@ class ConsoleLogger(ICallback):
         self._console = Console(color_system="truecolor")
         self._console_status = Status("[bold green]Running", spinner="point")
 
+        if self._cfg.online:
+            self._online_logger = Experiment(
+                api_key=os.environ["COMET_API_KEY"],
+                project_name=os.environ["COMET_PROJECT_NAME"],
+                workspace=os.environ["COMET_WORKSPACE"],
+                log_graph=False,
+                parse_args=False,
+                log_code=False,
+                auto_log_co2=False,
+                auto_param_logging=False,
+                auto_output_logging="default",
+                auto_metric_logging=False,
+                auto_histogram_weight_logging=False,
+                log_env_host=False,
+                log_env_details=False,
+                log_env_cpu=False,
+                log_env_network=False,
+                log_env_disk=False,
+            )
+            if tags := self._cfg.logging.get("tags", False):
+                self._online_logger.add_tags(tags)
+
+        self._exp_name = (
+            self._online_logger.get_name()
+            if self._cfg.online
+            else time.strftime("%Y-%m-%d-%H:%M:%S")
+        )
+        self._logging_dir = f"./checkpoints/{self._exp_name}"
+        if not os.path.isdir(self._logging_dir):
+            os.mkdir(self._logging_dir)
+
     def on_experiment_start(self, exp: "IExperiment") -> None:
         # table_config = config2table(OmegaConf.to_container(self._cfg))
         # self._console.log(table_config)
         pass
 
-    def on_batch_start(self, exp: IExperiment):
+    def on_batch_start(self, exp: IExperiment) -> None:
         # This function will run AFTER the exp.on_batch_start
         if hasattr(exp, "engine"):
             if not exp.engine.is_local_main_process:
@@ -31,11 +65,14 @@ class ConsoleLogger(ICallback):
         )
 
     def on_epoch_end(self, exp: IExperiment) -> None:
+        # This function will run BEFORE the exp.on_epoch_end
         if hasattr(exp, "engine"):
             if not exp.engine.is_local_main_process:
                 return
-            
-        # This function will run BEFORE the exp.on_batch_start
+
+        with self._online_logger.context_manager(exp.dataset_key):
+            self._online_logger.log_metrics(exp.dataset_metrics, epoch=exp.epoch_step)
+
         metrics_str = ", ".join(
             "{}={:.3f}".format(key.title(), val)
             for (key, val) in exp.dataset_metrics.items()
