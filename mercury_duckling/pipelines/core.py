@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 
 from ..models.predictor import BasePredictor
 from ..samplers import BaseSampler, sampler_register
-from ..utils import ConsoleLogger
+from ..utils import ConsoleLogger, ModelLogger
 
 
 def collate_fn(batch):
@@ -96,7 +96,14 @@ class SegmentationExp(IExperiment):
         self.datasets = {"train": train_loader, "val": val_loader}
 
     def _setup_callbacks(self):
-        self.callbacks = {"console": ConsoleLogger(self._cfg)}
+        self.callbacks = {
+            "logger": ConsoleLogger(self._cfg),
+            "model_save": ModelLogger(
+                metric_name="iou_score",
+                minimise=False,
+                model_attr="segmentor",
+            )
+        }
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         super().on_experiment_start(exp)

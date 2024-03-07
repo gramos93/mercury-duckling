@@ -1,5 +1,6 @@
 import os
 import click
+from dotenv import load_dotenv
 from omegaconf import OmegaConf
 from rich.console import Console
 
@@ -11,6 +12,8 @@ from mercury_duckling.models import build_predictor, build_segmentor
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 CLI_CONSOLE = Console(color_system="truecolor")
 
+
+load_dotenv(".env")
 
 def add_dir(x):
     return os.path.join(THIS_DIR, "mercury_duckling", x)
