@@ -29,8 +29,24 @@ models:
   DeepLabV3+:
     type: segmentor
     args:
-      encoder_name: "resnet34"
+      encoder_name: "mit_b2"
       encoder_weights: "imagenet"
+      in_channels: 3
+      classes: 1
+  FPN:
+    type: segmentor
+    args:
+      encoder_name: "mit_b4"
+      encoder_weights: "imagenet"
+      encoder_depth: 5
+      in_channels: 3
+      classes: 1
+  Unet:
+    type: segmentor
+    args:
+      encoder_name: "mit_b4"
+      encoder_weights: "imagenet"
+      decoder_attention_type: "scse"
       in_channels: 3
       classes: 1
 selected_model: SAM

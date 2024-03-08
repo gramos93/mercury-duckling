@@ -27,7 +27,7 @@ class BasePredictor(nn.Module, ABC):
         self._current_id = None
 
     @abstractmethod
-    def _setup_model(self) -> None:
+    def _setup_model(self, device: str) -> None:
         """This function should be overloaded to setup the model"""
         raise NotImplementedError
 
@@ -77,14 +77,14 @@ class SamPredictor(BasePredictor):
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config)
 
-    def _setup_model(self) -> None:
+    def _setup_model(self, device: str) -> None:
         from segment_anything import SamPredictor as SP
         from segment_anything import sam_model_registry
 
         self.__sam_checkpoint = self._config.checkpoint
         self.__model_size = self._config.size
         sam = sam_model_registry[self.__model_size](self.__sam_checkpoint)
-        self.model: SP = SP(sam)
+        self.model: SP = SP(sam.to(device))
 
     def prepare_prompts(self, prompts: List[Any]) -> Dict[str, Any]:
         """

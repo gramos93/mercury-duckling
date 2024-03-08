@@ -38,7 +38,7 @@ class ModelLogger(ICallback):
 
     def on_epoch_end(self, exp: "IExperiment") -> None:
         if exp.dataset_key == self._key:
-            last_score = exp.dataset_metrics[self._key][self.metric_name]
+            last_score = exp.dataset_metrics[self.metric_name]
             if getattr(last_score, self._cmp_func)(self._best):
                 self._best = last_score
                 if hasattr(exp, "engine"):

@@ -32,7 +32,7 @@ def build_thermal(cfg: DictConfig):
             # ResizeByCoefficient(cfg.data.coeff),
             ResizeLongestSideAndPad(target_size=cfg.target_size),
             # MinMaxNormalization(),
-            Colormap(colormap=cfg.colormap),
+            Colormap(colormap=cfg.colormap), # This will scale tp [0, 1]
             # StandardizeTarget(cfg.model.classes),
         ]
     else:
