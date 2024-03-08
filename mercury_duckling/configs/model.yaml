@@ -21,7 +21,7 @@ models:
   Unet++:
     type: segmentor
     args:
-      encoder_name: "resnet34"
+      encoder_name: "mit_b2"
       encoder_weights: "imagenet"
       decoder_attention_type: "scse"
       in_channels: 3
@@ -29,6 +29,7 @@ models:
   DeepLabV3+:
     type: segmentor
     args:
+      encoder_name: "mit_b2"
       encoder_name: "mit_b2"
       encoder_weights: "imagenet"
       in_channels: 3
