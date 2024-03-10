@@ -1,6 +1,5 @@
 import torch.nn as nn
 from segmentation_models_pytorch import Unet, UnetPlusPlus, DeepLabV3Plus, FPN
-# from . import isegm
 from .predictor import BasePredictor, SamPredictor, RITMPredictor
 from .segmentors import DinoV2
 
