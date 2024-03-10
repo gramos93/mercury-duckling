@@ -16,7 +16,7 @@ class ConsoleLogger(ICallback):
         self._console = Console(color_system="truecolor")
         self._console_status = Status("[bold green]Running", spinner="point")
 
-        if self._cfg.online:
+        if self._cfg.logging.is_online:
             self._online_logger = Experiment(
                 api_key=os.environ["COMET_API_KEY"],
                 project_name=os.environ["COMET_PROJECT_NAME"],
@@ -40,7 +40,7 @@ class ConsoleLogger(ICallback):
 
         self._exp_name = (
             self._online_logger.get_name()
-            if self._cfg.online
+            if self._cfg.logging.is_online
             else time.strftime("%Y-%m-%d-%H:%M:%S")
         )
         self._logging_dir = f"./checkpoints/{self._exp_name}"
@@ -69,9 +69,9 @@ class ConsoleLogger(ICallback):
         if hasattr(exp, "engine"):
             if not exp.engine.is_local_main_process:
                 return
-
-        with self._online_logger.context_manager(exp.dataset_key):
-            self._online_logger.log_metrics(exp.dataset_metrics, epoch=exp.epoch_step)
+        if self._cfg.logging.is_online:
+            with self._online_logger.context_manager(exp.dataset_key):
+                self._online_logger.log_metrics(exp.dataset_metrics, epoch=exp.epoch_step)
 
         metrics_str = ", ".join(
             "{}={:.3f}".format(key.title(), val)
@@ -84,8 +84,17 @@ class ConsoleLogger(ICallback):
         )
 
     def on_experiment_end(self, exp: "IExperiment") -> None:
-        # TODO: print summary of metrics from the exp.
-        pass
+        # TODO: Better track best metrics for experiment.
+        # Now it's mostly used for the interactive testing.
+        metrics_str = ", ".join(
+            "{}={:.3f}".format(key.title(), val)
+            for (key, val) in 
+            exp.experiment_metrics[exp.epoch_step][exp.dataset_key].items()
+        )
+        self._console.log(
+            f"[bold][red]Experiment Metrics: [/]"
+            f"[magenta] {metrics_str}[/]"
+        )
 
 
 def config2table(config):

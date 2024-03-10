@@ -6,14 +6,14 @@ from animus import IExperiment
 from omegaconf import DictConfig
 from segmentation_models_pytorch.losses import DiceLoss
 from segmentation_models_pytorch.metrics import f1_score, get_stats, iou_score
-from torch import Generator, no_grad, set_grad_enabled, zeros, stack, Tensor
+from torch import Generator, no_grad, set_grad_enabled, zeros, stack, Tensor, argwhere as tch_argwhere
 from torch.nn import Module
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
 
 from ..models.predictor import BasePredictor
 from ..samplers import BaseSampler, sampler_register
-from ..utils import ConsoleLogger
+from ..utils import ConsoleLogger, ModelLogger
 
 
 def collate_fn(batch):
@@ -96,7 +96,14 @@ class SegmentationExp(IExperiment):
         self.datasets = {"train": train_loader, "val": val_loader}
 
     def _setup_callbacks(self):
-        self.callbacks = {"console": ConsoleLogger(self._cfg)}
+        self.callbacks = {
+            "logger": ConsoleLogger(self._cfg),
+            "model_save": ModelLogger(
+                metric_name="iou_score",
+                minimise=False,
+                model_attr="segmentor",
+            )
+        }
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         super().on_experiment_start(exp)
@@ -152,7 +159,6 @@ class SegmentationExp(IExperiment):
                 #     )
         with no_grad():
             self.batch_metrics["loss"] = loss
-            self.batch_metrics["loss"] = loss
             stats = get_stats(
                 outputs.sigmoid(),
                 targets.long(),
@@ -161,10 +167,6 @@ class SegmentationExp(IExperiment):
                 # num_classes=self._cfg.model.classes,
             )
             for metric_name, metric in self.metrics.items():
-                self.batch_metrics[metric_name] = metric(
-                    *stats, reduction="micro"
-                ).cuda()
-
                 self.batch_metrics[metric_name] = metric(
                     *stats, reduction="micro"
                 ).cuda()
@@ -223,13 +225,20 @@ class InteractiveTest(IExperiment):
         )
 
     def _setup_model(self):
-        self.predictor._setup_model()
+        # TODO: pass device here to the construction of the model.
+        self.predictor._setup_model(self.device)
         self.predictor.eval()
         self.predictor.to(self.device)
 
     def __setup_dataloaders(self) -> None:
         """Setup the dataloaders for the experiment."""
+        # split_train = 0.99
+        # generator = Generator().manual_seed(self._cfg.seed)
+        # train_data, val_data = random_split(
+        #     self._dataset, (split_train, 1 - split_train), generator
+        # )
         test_loader = DataLoader(
+            # val_data,
             self._dataset,
             batch_size=1,
             shuffle=False,
@@ -249,11 +258,11 @@ class InteractiveTest(IExperiment):
         self._setup_callbacks()
 
     def on_epoch_start(self, exp: "IExperiment") -> None:
-        self.epoch_metrics: Dict = defaultdict(
-            lambda: zeros((1, self._cfg.sampler.args.click_limit))
-        )
+        self.epoch_step += 1
+        self.dataset_key = "test"
 
     def on_dataset_start(self, exp: "IExperiment"):
+        self.dataset_metrics: Dict = defaultdict(lambda : 0.0)
         self.sampler.is_sampling = True
 
     # on_batch_start
@@ -267,9 +276,9 @@ class InteractiveTest(IExperiment):
     def run_batch(self) -> None:
         inputs, targets = self.batch
         id = targets["image_id"]
-
         # The targets["masks"] shape is [B, Blobs, H, W] and we need [Blobs, C, H, W]
         targets["masks"] = targets["masks"].permute(1, 0, 2, 3).squeeze(1)
+        print(f"Image ID: {id} with {len(targets['masks'])} defects.")
         for target in targets["masks"]:
             outputs = None
             aux = None
@@ -290,10 +299,12 @@ class InteractiveTest(IExperiment):
 
     def on_batch_end(self, exp: IExperiment) -> None:
         for metric_name, metric_value in self.batch_metrics.items():
-            self.epoch_metrics[metric_name] += metric_value / len(self.dataset.dataset)
+            noc_score = NOCS(metric_value, 0.75, 20)[0] # The batch is already averaged here.
+            self.dataset_metrics[metric_name] += noc_score / len(self.dataset.dataset)
 
     # on_dataset_end
-
+    # on_epoch_end
+            
     def run_epoch(self) -> None:
         self._run_event("on_dataset_start")
         self.run_dataset()
@@ -303,3 +314,19 @@ class InteractiveTest(IExperiment):
         self._run_event("on_experiment_start")
         self.run_experiment()
         self._run_event("on_experiment_end")
+
+
+def NOCS(ious, thresh, max_clicks=20):
+    """Number of clicks to reach threshold"""
+    nocs = []
+    for i in ious:
+        iou_above_thresh = tch_argwhere(i > thresh)
+        if len(iou_above_thresh) == 0:
+            nocs.append(max_clicks)
+        else:
+            nocs.append(
+                min(
+                    iou_above_thresh[0].item(), max_clicks
+                )
+            )
+    return nocs

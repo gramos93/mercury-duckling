@@ -27,7 +27,7 @@ class BasePredictor(nn.Module, ABC):
         self._current_id = None
 
     @abstractmethod
-    def _setup_model(self) -> None:
+    def _setup_model(self, device: str) -> None:
         """This function should be overloaded to setup the model"""
         raise NotImplementedError
 
@@ -77,14 +77,14 @@ class SamPredictor(BasePredictor):
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config)
 
-    def _setup_model(self) -> None:
+    def _setup_model(self, device: str) -> None:
         from segment_anything import SamPredictor as SP
         from segment_anything import sam_model_registry
 
         self.__sam_checkpoint = self._config.checkpoint
         self.__model_size = self._config.size
         sam = sam_model_registry[self.__model_size](self.__sam_checkpoint)
-        self.model: SP = SP(sam)
+        self.model: SP = SP(sam.to(device))
 
     def prepare_prompts(self, prompts: List[Any]) -> Dict[str, Any]:
         """
@@ -159,18 +159,18 @@ class RITMPredictor(BasePredictor):
         super().__init__(config)
         # Fix for numpy.int being deprecated since numpy 1.20
         np.int = np.int_
-        from .isegm.inference.clicker import Click, Clicker
+        from isegm.inference.clicker import Click, Clicker
 
         self._clicker = Clicker
         self._click = Click
         self._threshold = self._config.threshold
 
-    def _setup_model(self) -> None:
-        from .isegm.inference import utils
-        from .isegm.inference.predictors import get_predictor
+    def _setup_model(self, device: str) -> None:
+        from isegm.inference import utils
+        from isegm.inference.predictors import get_predictor
 
-        model = utils.load_is_model(self._config.checkpoint)
-        self.model = get_predictor(model, "NoBRS", "cpu", prob_thresh=self._threshold)
+        model = utils.load_is_model(self._config.checkpoint, device)
+        self.model = get_predictor(model, "NoBRS", device, prob_thresh=self._threshold)
 
     def prepare_prompts(self, prompts: List[Any]) -> Dict[str, Any]:
         """
@@ -214,19 +214,25 @@ class RITMPredictor(BasePredictor):
         """
         assert id is not None, "id should not be None."
 
-        h, w, c = inpts.shape
+        b, c, h, w = inpts.shape
         if id != self._current_id:
+            # Basically if input comes from DataLoader.
+            if isinstance(inpts, Tensor):
+                inpts = inpts.squeeze(0).permute(1, 2, 0).numpy()
+            if inpts.max() <= 1.:
+                inpts = (inpts * 255).astype(np.uint8)
+
             inpts = self.preprocess(inpts)
             self.model.set_input_image(inpts)
             self._current_id = id
 
         if aux is not None:
-            aux = Tensor(aux).unsqueeze(0).unsqueeze(0)
+            aux = Tensor(aux).unsqueeze(0).unsqueeze(0).to(self.model.device)
         else:
-            aux = torch.zeros((1, 1, h, w))
+            aux = torch.zeros((1, 1, h, w), device=self.model.device)
 
         prompts = self.prepare_prompts(prompts)
         # By default RITM will use the previous prediction saved internally.
         logits = self.model.get_prediction(prompts, aux)
         masks = self.postprocess(logits > self._threshold)
-        return masks, logits
+        return torch.tensor(masks, dtype=torch.uint8), logits

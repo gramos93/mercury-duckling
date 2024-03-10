@@ -167,5 +167,5 @@ pyrightconfig.json
 
 # Model Weights
 checkpoints/*
-mercury_duckling/models/isegm
-mercury_duckling/models/inter_unet
+isegm
+inter_unet

@@ -1,5 +1,6 @@
 import os
 import click
+from dotenv import load_dotenv
 from omegaconf import OmegaConf
 from rich.console import Console
 
@@ -11,6 +12,8 @@ from mercury_duckling.models import build_predictor, build_segmentor
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 CLI_CONSOLE = Console(color_system="truecolor")
 
+
+load_dotenv(".env")
 
 def add_dir(x):
     return os.path.join(THIS_DIR, "mercury_duckling", x)
@@ -30,7 +33,7 @@ def add_dir(x):
 )
 @click.option(
     "--mode",
-    default="train",
+    default=None,
     help="Mode of operation. One of [`train`, `test`].",
 )
 def main(device, model, dataset, mode):
@@ -57,9 +60,9 @@ def main(device, model, dataset, mode):
         else:
             cfg_model.selected_model = model
 
-    if mode in ["train", "test"]:
+    if mode in ["train", "test"] and mode is not None:
         cfg_base.mode = mode
-    else:
+    elif (mode not in ["train", "test"]) and (mode is not None):
         CLI_CONSOLE.log("[bold red]Invalid mode. Exiting.")
         return 3
 

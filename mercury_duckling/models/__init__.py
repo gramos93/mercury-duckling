@@ -1,12 +1,15 @@
 import torch.nn as nn
-from segmentation_models_pytorch import UnetPlusPlus, DeepLabV3Plus
+from segmentation_models_pytorch import Unet, UnetPlusPlus, DeepLabV3Plus, FPN
+# from . import isegm
 from .predictor import BasePredictor, SamPredictor, RITMPredictor
 from .segmentors import DinoV2
 
 segmentor_registry = {
     "DINOV2": DinoV2,
+    "Unet": Unet,
     "Unet++": UnetPlusPlus,
     "DeepLabV3+": DeepLabV3Plus,
+    "FPN": FPN
 }
 predictor_registry = {
     "SAM": SamPredictor,
