@@ -5,6 +5,7 @@ import torch
 from matplotlib.colors import Colormap as pltColormap
 from matplotlib import colormaps
 from scipy.ndimage import label
+from skimage.measure import regionprops
 from torch.nn import functional as F
 from torchvision import tv_tensors
 from torchvision.transforms.v2 import InterpolationMode, Transform
@@ -42,9 +43,13 @@ def clahe_image(inpt: tv_tensors.Image, params: Dict[str, Any]) -> tv_tensors.Im
         inpt = inpt.squeeze(-1)
     else:
         raise NotImplementedError("Not implemented for multi-channel images.")
-    
+
     inpt = clahe_enhancement(
-        inpt.astype(np.uint8), params["clip_limit"], params["nrBins"], params["nrX"], params["nrY"]
+        inpt.astype(np.uint8),
+        params["clip_limit"],
+        params["nrBins"],
+        params["nrX"],
+        params["nrY"],
     )
     # Convert back to torch tensor with 1 channel at position 0.
     inpt = tv_tensors.Image(inpt, dtype=torch.float32)
@@ -84,28 +89,53 @@ class Clahe(Transform):
 
 
 def blobify(
-    inpt: torch.Tensor,
+    inpt: Any,
+    params: Dict[str, Any],
 ) -> torch.Tensor:
     """See :class:`Blobify` for details."""
     _log_api_usage_once(blobify)
 
     kernel = _get_kernel(blobify, type(inpt))
-    return kernel(inpt)
+    return kernel(inpt, params)
 
 
-# TODO: Add kernel for bboxes.
+@_register_kernel_internal(blobify, tv_tensors.BoundingBoxes)
+def blobify_mask_tensor(
+    inpt: tv_tensors.BoundingBoxes, params: Dict[str, Any]
+) -> tv_tensors.BoundingBoxes:
+    boxes = []
+    for region in params["regions"]:
+        min_chn, minr, minc, max_chn, maxr, maxc = region.bbox
+        boxes.append([minc, minr, maxc, maxr])
+    print("Canvas size", params["canvas_size"])
+    return tv_tensors.BoundingBoxes(
+        boxes,
+        format=tv_tensors.BoundingBoxFormat.XYXY,
+        canvas_size=params["canvas_size"],
+        device=inpt.device,
+    )
+
+
 @_register_kernel_internal(blobify, tv_tensors.Mask)
-def blobify_mask_tensor(inpt: tv_tensors.Mask) -> tv_tensors.Mask:
-    label(inpt.numpy(), output=inpt.numpy())
-    inpt = tv_tensors.Mask(inpt, dtype=torch.uint8)
+def blobify_mask_tensor(
+    inpt: tv_tensors.Mask, params: Dict[str, Any]
+) -> tv_tensors.Mask:
+    inpt = tv_tensors.Mask(params["labels"], dtype=torch.uint8)
     return inpt
 
 
 class Blobify(Transform):
-    def _transform(
-        self, inpt: tv_tensors.Mask, params: Dict[str, Any]
-    ) -> tv_tensors.Mask:
-        return self._call_kernel(blobify, inpt)
+    def __init__(self, canvas_size: Tuple[int, int]) -> None:
+        super().__init__()
+        self.canvas_size = canvas_size
+
+    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+        labeled_inpt, nregions = label(flat_inputs[2].numpy())
+        regions = regionprops(labeled_inpt)
+        return {"labels": labeled_inpt, "regions": regions, "canvas_size": self.canvas_size}
+
+    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+        return self._call_kernel(blobify, inpt, params)
 
 
 class StandardizeTarget(torch.nn.Module):
