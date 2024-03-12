@@ -262,7 +262,7 @@ class InteractiveTest(IExperiment):
         self.dataset_key = "test"
 
     def on_dataset_start(self, exp: "IExperiment"):
-        self.dataset_metrics: Dict = defaultdict(lambda : 0.0)
+        self.dataset_metrics: Dict = defaultdict(lambda : [])
         self.sampler.is_sampling = True
 
     # on_batch_start
@@ -299,8 +299,21 @@ class InteractiveTest(IExperiment):
 
     def on_batch_end(self, exp: IExperiment) -> None:
         for metric_name, metric_value in self.batch_metrics.items():
-            noc_score = NOCS(metric_value, 0.75, 20)[0] # The batch is already averaged here.
-            self.dataset_metrics[metric_name] += noc_score / len(self.dataset.dataset)
+            self.dataset_metrics[metric_name].append(metric_value)
+
+    def on_dataset_end(self, exp: IExperiment):
+        for metric_name, metric_value in self.dataset_metrics.items():
+            scores = stack(metric_value).mean(dim=0)
+            noc_score = NOCS(scores, 0.75, 20)[0] # The batch is already averaged here.
+            self.dataset_metrics[metric_name] = noc_score
+
+            scores = ', '.join((f"{i:.3f}" for i in scores[0].tolist()))
+            self.callbacks["logger"]._console.log(
+                "[bold][red]Dataset IOU per click: [/]"
+                f" -> [magenta]metrics: {scores}[/]"
+            )
+        super().on_dataset_end(exp)
+        
 
     # on_dataset_end
     # on_epoch_end

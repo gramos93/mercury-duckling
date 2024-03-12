@@ -7,7 +7,7 @@ models:
     size: vit_h
   RITM:
     type: interactive
-    checkpoint: checkpoints/coco_lvis_h18_itermask.pth
+    checkpoint: checkpoints/coco_lvis_h32_itermask.pth
     threshold: 0.49
   IUNET:
     type: interactive

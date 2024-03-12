@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Tuple
 from warnings import warn
 
 import numpy as np
+import cv2
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig
@@ -238,7 +239,7 @@ class RITMPredictor(BasePredictor):
         return torch.tensor(masks, dtype=torch.uint8), logits
 
 
-class IUnetPredictor(nn.Module, ABC):
+class IUnetPredictor(BasePredictor):
     def __init__(self, config: DictConfig) -> None:
         """
         IS Unet API to be used by interactive predictors in the interactive pipelines.
@@ -248,33 +249,34 @@ class IUnetPredictor(nn.Module, ABC):
                 OmegaConf format. All model parameters should be inside
                 the config dictionary.
         """
-        super(BasePredictor, self).__init__()
-        self._config = config
-        self._current_id = None
+        super().__init__(config)
 
     def _setup_model(self, device: str):
-        from inter_unet.networks.models import build_model
-        from inter_unet.networks.transforms import (
+        from inter_unet.models import build_model
+        from inter_unet.transforms import (
             groupnorm_normalise_image,
             trimap_transform,
         )
+        self._groupnorm_normalise_image = groupnorm_normalise_image
+        self._trimap_transform = trimap_transform
+
         class InterUnetArgs:
             encoder = "resnet50_GN_WS"
             decoder = "InteractiveSegNet"
             use_mask_input = True
             use_usr_encoder = True
-            weights = self._cfg.checkpoint
-            device = device
+            weights = self._config.checkpoint
 
         args = InterUnetArgs()
         self.model = build_model(args)
+        self.model.to(device)
         self.model.eval()
 
     def get_predictions(
         self,
         image_np: np.ndarray,
         trimap_np: np.ndarray,
-        alpha_old_np: np.ndarray,
+        alpha_old: np.ndarray,
     ) -> np.ndarray:
         """Predict segmentation
         Parameters:
@@ -285,27 +287,31 @@ class IUnetPredictor(nn.Module, ABC):
         alpha: alpha matte/non-binary segmentation image between 0 and 1.
                 Dimensions: (h, w)
         """
+        
         image_np = image_np / 255.0
-        alpha_old_np = remove_non_fg_connected(alpha_old_np, trimap_np[:, :, 1])
+        # alpha_old_np = remove_non_fg_connected(alpha_old_np, trimap_np[:, :, 1])
 
         h, w = trimap_np.shape[:2]
-        image_scale_np = scale_input(image_np, cv2.INTER_LANCZOS4)
-        trimap_scale_np = scale_input(trimap_np, cv2.INTER_NEAREST)
-        alpha_old_scale_np = scale_input(alpha_old_np, cv2.INTER_LANCZOS4)
+        # image_scale_np = scale_input(image_np, cv2.INTER_LANCZOS4)
+        # trimap_scale_np = scale_input(trimap_np, cv2.INTER_NEAREST)
+        # alpha_old_scale_np = scale_input(alpha_old_np, cv2.INTER_LANCZOS4)
 
-        image_torch = np_to_torch(image_scale_np)
-        trimap_torch = np_to_torch(trimap_scale_np)
-        alpha_old_torch = np_to_torch(alpha_old_scale_np[:, :, None])
+        image_torch = np_to_torch(image_np)
+        trimap_torch = np_to_torch(trimap_np)
+        if isinstance(alpha_old, Tensor):
+            alpha_old_torch = alpha_old[None, None, ...].float()
+        else:
+            alpha_old_torch = np_to_torch(alpha_old[:, :, None])
 
-        trimap_transformed_torch = np_to_torch(trimap_transform(trimap_scale_np))
-        image_transformed_torch = groupnorm_normalise_image(
+        trimap_transformed_torch = np_to_torch(self._trimap_transform(trimap_np))
+        image_transformed_torch = self._groupnorm_normalise_image(
             image_torch.clone(), format="nchw"
         )
         alpha = self.model(
-            image_transformed_torch,
-            trimap_transformed_torch,
-            alpha_old_torch,
-            trimap_torch,
+            image_transformed_torch.to(self.device),
+            trimap_transformed_torch.to(self.device),
+            alpha_old_torch.to(self.device),
+            trimap_torch.to(self.device),
         )
         alpha = cv2.resize(
             alpha[0].cpu().numpy().transpose((1, 2, 0)), (w, h), cv2.INTER_LANCZOS4
@@ -315,7 +321,7 @@ class IUnetPredictor(nn.Module, ABC):
         alpha = remove_non_fg_connected(alpha, trimap_np[:, :, 1])
         return alpha
 
-    def prepare_promtps(self, prompts, trimap):
+    def prepare_prompts(self, prompts, trimap):
         for prompt in prompts:
             if prompt["type"] == "point":
                 # coords are in (y, x) format
@@ -326,13 +332,15 @@ class IUnetPredictor(nn.Module, ABC):
                 warn(f"Ignoring invalid prompt type: {prompt['type']}.")
         return trimap
 
-    def predict(self, inputs, prompts, aux, id):
+    def predict(
+        self, inpts: np.ndarray, prompts: List[Any], aux: Any, id: int
+    ) -> Tuple[Tensor, Tensor]:
         if id != self._current_id:
             # This model does not need to set an image.
             # Hence we only reset the previous mask.
             self._current_id = id
 
-        b, c, h, w = inputs.shape
+        b, c, h, w = inpts.shape
         if isinstance(inpts, Tensor):
             inpts = inpts.squeeze(0).permute(1, 2, 0).numpy()
         if inpts.max() <= 1.:
@@ -341,9 +349,10 @@ class IUnetPredictor(nn.Module, ABC):
             aux = np.zeros((h, w))
 
         trimap = np.zeros((h, w, 2))
-        trimap = self.prepare_promtps(prompts, trimap)
-        alpha = self.get_predictions(inputs, trimap, aux)
-        return alpha, None
+        trimap = self.prepare_prompts(prompts, trimap)
+        alpha = self.get_predictions(inpts, trimap, aux)
+
+        return torch.tensor(alpha, dtype=torch.uint8), None
 
 # TODO: Re implement this as a v2.transform
 def remove_non_fg_connected(alpha_np, fg_pos):
