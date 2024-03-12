@@ -99,7 +99,7 @@ def blobify(
     return kernel(inpt, params)
 
 
-@_register_kernel_internal(blobify, tv_tensors.BoundingBoxes)
+@_register_kernel_internal(blobify, tv_tensors.BoundingBoxes, tv_tensor_wrapper=False)
 def blobify_mask_tensor(
     inpt: tv_tensors.BoundingBoxes, params: Dict[str, Any]
 ) -> tv_tensors.BoundingBoxes:
@@ -107,9 +107,9 @@ def blobify_mask_tensor(
     for region in params["regions"]:
         min_chn, minr, minc, max_chn, maxr, maxc = region.bbox
         boxes.append([minc, minr, maxc, maxr])
-    print("Canvas size", params["canvas_size"])
+    
     return tv_tensors.BoundingBoxes(
-        boxes,
+        torch.tensor(boxes),
         format=tv_tensors.BoundingBoxFormat.XYXY,
         canvas_size=params["canvas_size"],
         device=inpt.device,
@@ -125,14 +125,14 @@ def blobify_mask_tensor(
 
 
 class Blobify(Transform):
-    def __init__(self, canvas_size: Tuple[int, int]) -> None:
-        super().__init__()
-        self.canvas_size = canvas_size
-
     def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
         labeled_inpt, nregions = label(flat_inputs[2].numpy())
         regions = regionprops(labeled_inpt)
-        return {"labels": labeled_inpt, "regions": regions, "canvas_size": self.canvas_size}
+        return {
+            "labels": labeled_inpt,
+            "regions": regions,
+            "canvas_size": labeled_inpt.shape[-2:],
+        }
 
     def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
         return self._call_kernel(blobify, inpt, params)
