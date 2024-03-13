@@ -1,6 +1,6 @@
 import torch.nn as nn
 from segmentation_models_pytorch import Unet, UnetPlusPlus, DeepLabV3Plus, FPN
-from .predictor import BasePredictor, SamPredictor, RITMPredictor
+from .predictor import BasePredictor, SamPredictor, RITMPredictor, IUnetPredictor
 from .segmentors import DinoV2
 
 segmentor_registry = {
@@ -13,7 +13,7 @@ segmentor_registry = {
 predictor_registry = {
     "SAM": SamPredictor,
     "RITM": RITMPredictor,
-    "IUNET": False,
+    "IUNET": IUnetPredictor,
 }
 
 

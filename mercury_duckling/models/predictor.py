@@ -252,14 +252,14 @@ class IUnetPredictor(BasePredictor):
         super().__init__(config)
 
     def _setup_model(self, device: str):
-        from inter_unet.models import build_model
-        from inter_unet.transforms import (
+        from inter_unet.networks.models import build_model
+        from inter_unet.networks.transforms import (
             groupnorm_normalise_image,
             trimap_transform,
         )
         self._groupnorm_normalise_image = groupnorm_normalise_image
         self._trimap_transform = trimap_transform
-
+        self.device = device
         class InterUnetArgs:
             encoder = "resnet50_GN_WS"
             decoder = "InteractiveSegNet"
