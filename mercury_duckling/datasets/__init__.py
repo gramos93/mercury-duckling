@@ -44,7 +44,7 @@ def build_thermal(cfg: DictConfig):
             ResizeLongestSideAndPad(target_size=cfg.target_size),
             # ResizeByCoefficient(cfg.data.coeff),
             MinMaxNormalization(),
-            # Clahe(),
+            Clahe(),
             Colormap(colormap=cfg.colormap),
         ]
     if cfg.model.type == "interactive":
