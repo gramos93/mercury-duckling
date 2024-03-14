@@ -31,7 +31,8 @@ def build_thermal(cfg: DictConfig):
             v2.RandomHorizontalFlip(p=0.7),
             # ResizeByCoefficient(cfg.data.coeff),
             ResizeLongestSideAndPad(target_size=cfg.target_size),
-            Colormap(colormap=cfg.colormap), # This will scale tp [0, 1]
+            MinMaxNormalization(),
+            # Colormap(colormap=cfg.colormap), # This will scale tp [0, 1]
             # StandardizeTarget(cfg.model.classes),
         ]
     else:
@@ -80,7 +81,6 @@ def build_segmentation(cfg: DictConfig):
                 v2.RandomHorizontalFlip(p=0.7),
                 # ResizeByCoefficient(cfg.data.coeff),
                 ResizeLongestSideAndPad(target_size=cfg.target_size),
-                # v2.ClampBoundingBoxes(),
             ]
     else:
         transform = None

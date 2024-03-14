@@ -25,6 +25,6 @@ split: 0.75   # train, val
 # num_epochs: 1
 
 # General transform parameters
-target_size: [256, 320] # if target is not the same size as the images
+target_size: [266, 322] # if target is not the same size as the images
 crop_size: ${target_size} # if not used "${target_size}"
-colormap: inferno # turbo, inferno, greys
+colormap: turbo # turbo, inferno, greys

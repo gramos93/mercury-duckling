@@ -1,7 +1,7 @@
 from functools import partial
 from typing import Any, List
 import torch.nn as nn
-from torch import hub, cat
+from torch import hub, cat, ones_like
 from torch.nn.functional import interpolate
 
 
@@ -10,7 +10,7 @@ class DinoV2(nn.Module):
             self,
             size: str = "large",
             classes: int = 1,
-            out_indices: List[int] = [8, 9, 10, 11],    
+            out_indices: List[int] = [8, 9, 10, 11],  
         ) -> None:
         super().__init__()
         backbone_archs = {
@@ -48,6 +48,38 @@ class DinoV2(nn.Module):
             len(out_indices)
             * backbone_feats_sizes[size]
         )
+        self.colormap_head = nn.Sequential(
+            nn.LayerNorm((1, 266, 322), eps=1e-06, elementwise_affine=True),
+            nn.Conv2d(
+                1,
+                3,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+            ),
+            nn.GELU(),
+            nn.LayerNorm((3, 266, 322), eps=1e-06, elementwise_affine=True),
+            nn.Conv2d(
+                3,
+                3,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+            ),
+            nn.GELU(),
+            nn.LayerNorm((3, 266, 322), eps=1e-06, elementwise_affine=True),
+            nn.Conv2d(
+                3,
+                3,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+            ),
+            nn.GELU(),
+        )
+        for param in self.colormap_head.parameters():
+            if isinstance(param, nn.Conv2d):
+                param.weight.data.copy_(
+                    ones_like(param.weight.data, requires_grad=True, device=self.device)
+                )
+
         self.decode_head = nn.Sequential(
             nn.BatchNorm2d(decode_head_width),
             nn.Conv2d(
@@ -60,6 +92,7 @@ class DinoV2(nn.Module):
 
     def forward(self, x: Any):
         B, C, H, W = x.shape
+        x = self.colormap_head(x)
         x = self.backbone(x)
         x = cat(x, dim=1)
         x = self.decode_head(x)

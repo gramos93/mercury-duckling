@@ -7,7 +7,7 @@ models:
     size: vit_h
   RITM:
     type: interactive
-    checkpoint: checkpoints/coco_lvis_h18_itermask.pth
+    checkpoint: checkpoints/coco_lvis_h32_itermask.pth
     threshold: 0.49
   IUNET:
     type: interactive
@@ -21,15 +21,15 @@ models:
   Unet++:
     type: segmentor
     args:
-      encoder_name: "mit_b2"
+      encoder_name: "resnet34"
       encoder_weights: "imagenet"
       decoder_attention_type: "scse"
-      in_channels: 3
-      classes: 1
+      in_channels: 1
+      classes: 2
   DeepLabV3+:
     type: segmentor
     args:
-      encoder_name: "mit_b2"
+      encoder_name: "resnet34"
       encoder_weights: "imagenet"
       in_channels: 3
       classes: 1
@@ -45,11 +45,11 @@ models:
     type: segmentor
     args:
       encoder_name: "mit_b4"
-      encoder_weights: "imagenet"
+      encoder_weights: null
       decoder_attention_type: "scse"
       in_channels: 3
       classes: 1
-selected_model: RITM
+selected_model: DINOV2
 model: "${models[${selected_model}]}"
 
 # SAMPLER CONFIG & PARAMS FOR INTERACTIVE MODELS.
@@ -62,9 +62,12 @@ sampler:
 # TRAINING PARAMS FOR SEGMENTOR MODELS
 optimizer:
   lr: 1e-4
+  # momentum: 0.99
+  # weight_decay: 0.005
 loss: 
   mode: "binary"
   from_logits: true 
+  smooth: 1e-12
 
 # PRE AND POST PROCESSING FOR PIPELINES.
 # TODO: implement pre and post processing methods and registry.

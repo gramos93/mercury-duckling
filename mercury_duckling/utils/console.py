@@ -45,7 +45,7 @@ class ConsoleLogger(ICallback):
         )
         self._logging_dir = f"./checkpoints/{self._exp_name}"
         if not os.path.isdir(self._logging_dir):
-            os.mkdir(self._logging_dir)
+            os.makedirs(self._logging_dir, exist_ok=True)
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         # table_config = config2table(OmegaConf.to_container(self._cfg))
