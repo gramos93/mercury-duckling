@@ -1,6 +1,6 @@
 # Path: mercury_duckling/configs/base.yaml
-mode: train     # train, test
-device: cuda    # cpu, cuda:{idx}, ddp (DataParallel) 
+mode: test     # train, test
+device: cuda:0    # cpu, cuda:{idx}, ddp (DataParallel) 
 logging:
   is_online: False
   tags: []

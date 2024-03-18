@@ -2,7 +2,7 @@ import os
 import time
 from animus import ICallback, IExperiment
 from comet_ml import Experiment
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pandas import json_normalize
 from rich.console import Console
 from rich.status import Status
@@ -48,9 +48,8 @@ class ConsoleLogger(ICallback):
             os.makedirs(self._logging_dir, exist_ok=True)
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
-        # table_config = config2table(OmegaConf.to_container(self._cfg))
-        # self._console.log(table_config)
-        pass
+        table_config = config2table(OmegaConf.to_container(self._cfg, resolve=True))
+        self._console.log(table_config)
 
     def on_batch_start(self, exp: IExperiment) -> None:
         # This function will run AFTER the exp.on_batch_start
@@ -114,8 +113,9 @@ def config2table(config):
         no_wrap=True,
         header_style="bold",
     )
-
     for param, value in normed_config.items():
+        if param.startswith(('models', 'datasets')):
+            continue
         config_table.add_row(param.title(), str(value[0]))
 
     return config_table

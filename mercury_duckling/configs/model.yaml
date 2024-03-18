@@ -47,9 +47,9 @@ models:
       encoder_name: "mit_b4"
       encoder_weights: null
       decoder_attention_type: "scse"
-      in_channels: 3
+      in_channels: 1
       classes: 1
-selected_model: DINOV2
+selected_model: IUNET
 model: "${models[${selected_model}]}"
 
 # SAMPLER CONFIG & PARAMS FOR INTERACTIVE MODELS.

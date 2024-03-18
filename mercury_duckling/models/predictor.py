@@ -352,7 +352,7 @@ class IUnetPredictor(BasePredictor):
         trimap = self.prepare_prompts(prompts, trimap)
         alpha = self.get_predictions(inpts, trimap, aux)
 
-        return torch.tensor(alpha, dtype=torch.uint8), None
+        return torch.tensor(alpha > 0.5, dtype=torch.uint8), None
 
 # TODO: Re implement this as a v2.transform
 def remove_non_fg_connected(alpha_np, fg_pos):

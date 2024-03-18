@@ -6,10 +6,19 @@ from animus import IExperiment
 from omegaconf import DictConfig
 from segmentation_models_pytorch.losses import DiceLoss
 from segmentation_models_pytorch.metrics import f1_score, get_stats, iou_score
-from torch import Generator, no_grad, set_grad_enabled, zeros, stack, Tensor, argwhere as tch_argwhere
+from torch import (
+    Generator, 
+    no_grad, 
+    set_grad_enabled, 
+    zeros, 
+    stack, 
+    Tensor, 
+    isnan,    
+    argwhere as tch_argwhere
+)
 from torch.nn import Module
 from torch.nn.utils import clip_grad_norm_
-from torch.optim import AdamW, Adam, SGD
+from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
 
 from ..models.predictor import BasePredictor
@@ -147,9 +156,10 @@ class SegmentationExp(IExperiment):
             outputs = self.segmentor(inputs)
             loss = self.criterion(outputs, targets.long())
             if self.is_train_dataset:
-                self.engine.backward(loss)
-                clip_grad_norm_(self.segmentor.parameters(), max_norm=20.0)
-                self.optimizer.step()
+                if not isnan(loss).any():
+                    self.engine.backward(loss)
+                    # clip_grad_norm_(self.segmentor.parameters(), max_norm=20.0)
+                    self.optimizer.step()
                 self.optimizer.zero_grad()
         with no_grad():
             self.batch_metrics["loss"] = loss
@@ -284,7 +294,6 @@ class InteractiveTest(IExperiment):
                 )
                 self.sampler.set_outputs(outputs)
                 stats = get_stats(outputs, target, mode="binary")
-                # NOTE: This metric calculation is not the same as NOCs.
                 for metric_name, metric in self.metrics.items():
                     score = metric(*stats, reduction="micro")
                     self.batch_metrics[metric_name][0, click_step] += float(
@@ -308,8 +317,6 @@ class InteractiveTest(IExperiment):
             )
         super().on_dataset_end(exp)
         
-
-    # on_dataset_end
     # on_epoch_end
             
     def run_epoch(self) -> None:

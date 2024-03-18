@@ -1,7 +1,7 @@
 from functools import partial
 from typing import Any, List
 import torch.nn as nn
-from torch import hub, cat, ones_like
+from torch import hub, cat, ones_like, no_grad
 from torch.nn.functional import interpolate
 
 
@@ -44,46 +44,47 @@ class DinoV2(nn.Module):
         for param in self.backbone.parameters():
             param.requires_grad = False
 
-        decode_head_width = (
-            len(out_indices)
-            * backbone_feats_sizes[size]
-        )
-        self.colormap_head = nn.Sequential(
-            nn.LayerNorm((1, 266, 322), eps=1e-06, elementwise_affine=True),
-            nn.Conv2d(
-                1,
-                3,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-            ),
-            nn.GELU(),
-            nn.LayerNorm((3, 266, 322), eps=1e-06, elementwise_affine=True),
-            nn.Conv2d(
-                3,
-                3,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-            ),
-            nn.GELU(),
-            nn.LayerNorm((3, 266, 322), eps=1e-06, elementwise_affine=True),
-            nn.Conv2d(
-                3,
-                3,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-            ),
-            nn.GELU(),
-        )
-        for param in self.colormap_head.parameters():
-            if isinstance(param, nn.Conv2d):
-                param.weight.data.copy_(
-                    ones_like(param.weight.data, requires_grad=True, device=self.device)
-                )
+        # self._decode_head_width = (
+        #     len(out_indices)
+        #     * backbone_feats_sizes[size]
+        # )
+        self._decode_head_width = backbone_feats_sizes[size]
+        # self.colormap_head = nn.Sequential(
+        #     nn.LayerNorm((1, 266, 322), eps=1e-06, elementwise_affine=True),
+        #     nn.Conv2d(
+        #         1,
+        #         3,
+        #         kernel_size=(1, 1),
+        #         stride=(1, 1),
+        #     ),
+        #     nn.GELU(),
+        #     nn.LayerNorm((3, 266, 322), eps=1e-06, elementwise_affine=True),
+        #     nn.Conv2d(
+        #         3,
+        #         3,
+        #         kernel_size=(1, 1),
+        #         stride=(1, 1),
+        #     ),
+        #     nn.GELU(),
+        #     nn.LayerNorm((3, 266, 322), eps=1e-06, elementwise_affine=True),
+        #     nn.Conv2d(
+        #         3,
+        #         3,
+        #         kernel_size=(1, 1),
+        #         stride=(1, 1),
+        #     ),
+        #     nn.GELU(),
+        # )
+        # for param in self.colormap_head.parameters():
+        #     if isinstance(param, nn.Conv2d):
+        #         param.weight.data.copy_(
+        #             ones_like(param.weight.data, requires_grad=True, device=self.device)
+        #         )
 
         self.decode_head = nn.Sequential(
-            nn.BatchNorm2d(decode_head_width),
+            nn.BatchNorm2d(self._decode_head_width),
             nn.Conv2d(
-                decode_head_width,
+                self._decode_head_width,
                 classes,
                 kernel_size=(1, 1),
                 stride=(1, 1),
@@ -92,8 +93,11 @@ class DinoV2(nn.Module):
 
     def forward(self, x: Any):
         B, C, H, W = x.shape
-        x = self.colormap_head(x)
-        x = self.backbone(x)
-        x = cat(x, dim=1)
+        # x = self.colormap_head(x)
+        with no_grad():
+            x = self.backbone.forward_features(x)
+            x = x['x_norm_patchtokens']
+            x = x.permute(0, 2, 1)
+            x = x.reshape(B, self._decode_head_width, H//14, W//14)
         x = self.decode_head(x)
         return interpolate(x, (H, W), mode="bilinear", align_corners=True)
