@@ -18,6 +18,12 @@ models:
       size: base
       out_indices: [8, 9, 10, 11]
       classes: 1
+  SegFormer:
+    type: segmentor
+    args:
+      checkpoint: nvidia/segformer-b4-finetuned-ade-512-512
+      in_channels: 1
+      classes: 1
   Unet++:
     type: segmentor
     args:
@@ -25,7 +31,7 @@ models:
       encoder_weights: "imagenet"
       decoder_attention_type: "scse"
       in_channels: 1
-      classes: 2
+      classes: 1
   DeepLabV3+:
     type: segmentor
     args:
@@ -49,7 +55,7 @@ models:
       decoder_attention_type: "scse"
       in_channels: 1
       classes: 1
-selected_model: IUNET
+selected_model: SegFormer
 model: "${models[${selected_model}]}"
 
 # SAMPLER CONFIG & PARAMS FOR INTERACTIVE MODELS.
@@ -62,8 +68,8 @@ sampler:
 # TRAINING PARAMS FOR SEGMENTOR MODELS
 optimizer:
   lr: 1e-4
+  weight_decay: 0.0005
   # momentum: 0.99
-  # weight_decay: 0.005
 loss: 
   mode: "binary"
   from_logits: true 

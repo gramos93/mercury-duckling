@@ -26,13 +26,14 @@ def build_thermal(cfg: DictConfig):
         target_transform = None
         transforms = [
             v2.ToImage(),
-            v2.RandomZoomOut(fill={tv_tensors.Image: (0), "others": 0}),
-            v2.RandomIoUCrop(),
-            v2.RandomHorizontalFlip(p=0.7),
+            # v2.RandomZoomOut(fill={tv_tensors.Image: (0), "others": 0}),
+            # v2.RandomIoUCrop(),
+            v2.RandomRotation((25, 90)),
+            v2.RandomHorizontalFlip(p=0.5),
             # ResizeByCoefficient(cfg.data.coeff),
             ResizeLongestSideAndPad(target_size=cfg.target_size),
-            # MinMaxNormalization(),
-            Colormap(colormap=cfg.colormap), # This will scale tp [0, 1]
+            MinMaxNormalization() if cfg.model.args.in_channels == 1 
+            else Colormap(colormap=cfg.colormap),
             # StandardizeTarget(cfg.model.classes),
         ]
     else:

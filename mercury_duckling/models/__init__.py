@@ -1,11 +1,12 @@
 import torch.nn as nn
 from segmentation_models_pytorch import Unet, UnetPlusPlus, DeepLabV3Plus, FPN
 from .predictor import BasePredictor, SamPredictor, RITMPredictor, IUnetPredictor
-from .segmentors import DinoV2
+from .segmentors import DinoV2, ThermalSegFormer
 from .compound_losses import *
 
 segmentor_registry = {
     "DINOV2": DinoV2,
+    "SegFormer": ThermalSegFormer,
     "Unet": Unet,
     "Unet++": UnetPlusPlus,
     "DeepLabV3+": DeepLabV3Plus,

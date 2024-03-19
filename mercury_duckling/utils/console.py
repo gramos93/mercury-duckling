@@ -11,12 +11,13 @@ from rich.table import Table
 
 
 class ConsoleLogger(ICallback):
-    def __init__(self, cfg: DictConfig) -> None:
+    def __init__(self, cfg: DictConfig, exp: "IExperiment") -> None:
         super().__init__()
         self._cfg = cfg
         self._console = Console(color_system="truecolor")
         self._console_status = Status("[bold green]Running", spinner="point")
-
+        self._accel = getattr(exp, "engine")
+        
         if self._cfg.logging.is_online:
             self._online_logger = Experiment(
                 api_key=os.environ["COMET_API_KEY"],
@@ -50,9 +51,9 @@ class ConsoleLogger(ICallback):
     
     def on_experiment_start(self, exp: "IExperiment") -> None:
         # This function will run AFTER the exp.on_experiment_start
-        if hasattr(exp, "engine"):
-            if not exp.engine.is_local_main_process:
-                return
+        # if hasattr(exp, "engine"):
+        #     if not exp.engine.is_local_main_process:
+        #         return
         
         normed_config = json_normalize(
             OmegaConf.to_container(self._cfg, resolve=True),
@@ -61,13 +62,13 @@ class ConsoleLogger(ICallback):
         table_config = config2table(normed_config)
         self._console.log(table_config)
         if self._cfg.logging.is_online:
-            self._online_logger.log_parameters(normed_config)
+            self._online_logger.log_parameters(self._cfg)
 
     def on_batch_start(self, exp: IExperiment) -> None:
         # This function will run AFTER the exp.on_batch_start
-        if hasattr(exp, "engine"):
-            if not exp.engine.is_local_main_process:
-                return
+        # if hasattr(exp, "engine"):
+        #     if not exp.engine.is_local_main_process:
+        #         return
 
         self._console_status.update(
             f"[bold green]Running: {exp.dataset_key} "
@@ -77,9 +78,9 @@ class ConsoleLogger(ICallback):
 
     def on_epoch_end(self, exp: IExperiment) -> None:
         # This function will run BEFORE the exp.on_epoch_end
-        if hasattr(exp, "engine"):
-            if not exp.engine.is_local_main_process:
-                return
+        # if hasattr(exp, "engine"):
+        #     if not exp.engine.is_local_main_process:
+        #         return
             
         if self._cfg.logging.is_online:
             with self._online_logger.context_manager(exp.dataset_key):
@@ -101,9 +102,9 @@ class ConsoleLogger(ICallback):
     def on_experiment_end(self, exp: "IExperiment") -> None:
         # TODO: Better track best metrics for experiment.
         # Now it's mostly used for the interactive testing.
-        if hasattr(exp, "engine"):
-            if not exp.engine.is_local_main_process:
-                return
+        # if hasattr(exp, "engine"):
+        #     if not exp.engine.is_local_main_process:
+        #         return
             
         metrics_str = ", ".join(
             "{}={:.3f}".format(key.title(), val)
@@ -118,7 +119,6 @@ class ConsoleLogger(ICallback):
 
 def config2table(config):
     config_table = Table(title="Experiment Configuration")
-    normed_config = json_normalize(config, sep=" ")
     config_table.add_column(
         "[cyan]Parameter",
         justify="left",
@@ -133,7 +133,7 @@ def config2table(config):
         no_wrap=True,
         header_style="bold",
     )
-    for param, value in normed_config.items():
+    for param, value in config.items():
         if param.startswith(('models', 'datasets')):
             continue
         config_table.add_row(param.title(), str(value[0]))

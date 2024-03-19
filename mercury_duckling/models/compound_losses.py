@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 # https://github.com/oikosohn/compound-loss-pytorch/blob/main/unified_focal_loss_pytorch.py
 
@@ -219,3 +220,35 @@ class AsymmetricUnifiedFocalLoss(nn.Module):
         return (self.weight * asymmetric_ftl) + ((1-self.weight) * asymmetric_fl)  
       else:
         return asymmetric_ftl + asymmetric_fl
+      
+class softIOU(nn.Module):
+   
+    def __init__(self, epsilon:float=1.e-07) -> None:
+        super(softIOU, self).__init__()
+        self.epsilon = epsilon
+
+    def forward(self, y_pred, y_true):
+        # inputs => N x Classes x H x W
+    	# y_true => N x Classes x H x W
+        B, C, H, W = y_pred.shape
+
+        # Clip values to prevent division by zero error
+        y_pred = torch.clamp(y_pred, self.epsilon, 1. - self.epsilon)
+
+        # predicted probabilities for each pixel along channel
+        inputs = F.softmax(y_pred, dim=1)
+
+        # Numerator Product
+        inter = y_pred * y_true
+        ## Sum over all pixels N x C x H x W => N x C
+        inter = inter.view(B, C,-1).sum(2)
+
+        #Denominator 
+        union= y_pred + y_true - (y_pred*y_true)
+        ## Sum over all pixels N x C x H x W => N x C
+        union = union.view(B, C, -1).sum(2)
+
+        loss = inter/union
+
+        ## Return average loss over classes and batch
+        return 1-loss.mean()

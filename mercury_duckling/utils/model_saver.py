@@ -29,14 +29,15 @@ class ModelLogger(ICallback):
             raise ValueError(f"Folder {save_root} not found.")
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
+        pass
+
+    def on_epoch_end(self, exp: "IExperiment") -> None:
         if logger := exp.callbacks.get("logger", False):
             self._save_path = logger._logging_dir
         else:
             self._save_path = os.path.join(
                 self._save_path, time.strftime("%Y-%m-%d-%H:%M:%S")
             )
-
-    def on_epoch_end(self, exp: "IExperiment") -> None:
         if exp.dataset_key == self._key:
             last_score = exp.dataset_metrics[self.metric_name]
             if getattr(last_score, self._cmp_func)(self._best):
