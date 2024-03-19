@@ -168,7 +168,6 @@ class SegmentationExp(IExperiment):
                 targets.long(),
                 mode=self._cfg.loss.mode,
                 threshold=0.5,
-                # num_classes=self._cfg.model.classes,
             )
             for metric_name, metric in self.metrics.items():
                 self.batch_metrics[metric_name] = metric(

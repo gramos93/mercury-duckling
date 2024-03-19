@@ -100,7 +100,7 @@ def blobify(
 
 
 @_register_kernel_internal(blobify, tv_tensors.BoundingBoxes, tv_tensor_wrapper=False)
-def blobify_mask_tensor(
+def blobify_bounding_boxes(
     inpt: tv_tensors.BoundingBoxes, params: Dict[str, Any]
 ) -> tv_tensors.BoundingBoxes:
     boxes = []

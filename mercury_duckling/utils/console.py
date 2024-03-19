@@ -1,5 +1,6 @@
 import os
 import time
+from accelerate import accelerator
 from animus import ICallback, IExperiment
 from comet_ml import Experiment
 from omegaconf import DictConfig, OmegaConf
@@ -46,10 +47,21 @@ class ConsoleLogger(ICallback):
         self._logging_dir = f"./checkpoints/{self._exp_name}"
         if not os.path.isdir(self._logging_dir):
             os.makedirs(self._logging_dir, exist_ok=True)
-
+    
     def on_experiment_start(self, exp: "IExperiment") -> None:
-        table_config = config2table(OmegaConf.to_container(self._cfg, resolve=True))
+        # This function will run AFTER the exp.on_experiment_start
+        if hasattr(exp, "engine"):
+            if not exp.engine.is_local_main_process:
+                return
+        
+        normed_config = json_normalize(
+            OmegaConf.to_container(self._cfg, resolve=True),
+            sep=" "
+        )
+        table_config = config2table(normed_config)
         self._console.log(table_config)
+        if self._cfg.logging.is_online:
+            self._online_logger.log_parameters(normed_config)
 
     def on_batch_start(self, exp: IExperiment) -> None:
         # This function will run AFTER the exp.on_batch_start
@@ -68,9 +80,13 @@ class ConsoleLogger(ICallback):
         if hasattr(exp, "engine"):
             if not exp.engine.is_local_main_process:
                 return
+            
         if self._cfg.logging.is_online:
             with self._online_logger.context_manager(exp.dataset_key):
-                self._online_logger.log_metrics(exp.dataset_metrics, epoch=exp.epoch_step)
+                self._online_logger.log_metrics(
+                    exp.dataset_metrics,
+                    epoch=exp.epoch_step
+                )
 
         metrics_str = ", ".join(
             "{}={:.3f}".format(key.title(), val)
@@ -85,6 +101,10 @@ class ConsoleLogger(ICallback):
     def on_experiment_end(self, exp: "IExperiment") -> None:
         # TODO: Better track best metrics for experiment.
         # Now it's mostly used for the interactive testing.
+        if hasattr(exp, "engine"):
+            if not exp.engine.is_local_main_process:
+                return
+            
         metrics_str = ", ".join(
             "{}={:.3f}".format(key.title(), val)
             for (key, val) in 

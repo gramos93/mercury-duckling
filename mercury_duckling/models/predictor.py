@@ -23,7 +23,7 @@ class BasePredictor(nn.Module, ABC):
                 OmegaConf format. All model parameters should be inside
                 the config dictionary.
         """
-        super(BasePredictor, self).__init__()
+        super().__init__()
         self._config = config
         self._current_id = None
 
@@ -72,6 +72,9 @@ class BasePredictor(nn.Module, ABC):
         """
         assert id is not None, "id should not be None."
         raise NotImplementedError
+    
+    def forward(self, inpts: Dict[str, Any]) -> Tuple[Tensor, Tensor]:
+        return self.predict(**inpts)
 
 
 class SamPredictor(BasePredictor):
