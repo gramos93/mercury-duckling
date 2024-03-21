@@ -152,6 +152,8 @@ class SegmentationExp(IExperiment):
         self.dataset_metrics: Dict = defaultdict(lambda: 0.0)
         if not self.is_train_dataset:
             self.segmentor.eval()
+        else:
+            self.segmentor.train()
 
     def run_batch(self) -> None:
         with set_grad_enabled(self.is_train_dataset):
