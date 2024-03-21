@@ -85,4 +85,6 @@ def main(device, model, dataset, mode):
 
 
 if __name__ == "__main__":
+    # To run with accelerate use:
+    # CUDA_VISIBLE_DEVICES=1 accelerate launch --config_file ~/.cache/huggingface/accelerate/default_config.yaml run.py
     main()

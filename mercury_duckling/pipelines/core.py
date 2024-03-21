@@ -10,11 +10,13 @@ from torch import (
     Generator, 
     no_grad, 
     set_grad_enabled, 
-    zeros, 
+    zeros,
+    zeros_like,
     stack, 
     Tensor, 
     isnan,    
-    argwhere as tch_argwhere
+    argwhere as tch_argwhere,
+    cuda
 )
 from torch.nn import Module
 from torch.nn.utils import clip_grad_norm_
@@ -22,7 +24,7 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
 
 from ..models.predictor import BasePredictor
-from ..models import SymmetricUnifiedFocalLoss
+from ..models import SymmetricUnifiedFocalLoss, softIOU
 from ..samplers import BaseSampler, sampler_register
 from ..utils import ConsoleLogger, ModelLogger
 
@@ -71,7 +73,7 @@ class SegmentationExp(IExperiment):
         self.engine = engine
 
     def _setup_model(self):
-        self.criterion = DiceLoss(**self._cfg.loss)
+        self.criterion = softIOU()#(**self._cfg.loss)
         self.optimizer = AdamW(self.segmentor.parameters(), **self._cfg.optimizer)
 
         self.segmentor, self.optimizer = self.engine.prepare(
@@ -107,14 +109,17 @@ class SegmentationExp(IExperiment):
         self.datasets = {"train": train_loader, "val": val_loader}
 
     def _setup_callbacks(self):
-        self.callbacks = {
-            "logger": ConsoleLogger(self._cfg),
-            "model_save": ModelLogger(
-                metric_name="iou_score",
-                minimise=False,
-                model_attr="segmentor",
-            )
-        }
+        if self.engine.is_local_main_process:
+            self.callbacks = {
+                "logger": ConsoleLogger(self._cfg, self),
+                "model_save": ModelLogger(
+                    metric_name="iou_score",
+                    minimise=False,
+                    model_attr="segmentor",
+                )
+            }
+        else:
+            self.callbacks = {}
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         super().on_experiment_start(exp)
@@ -156,10 +161,11 @@ class SegmentationExp(IExperiment):
             outputs = self.segmentor(inputs)
             loss = self.criterion(outputs, targets.long())
             if self.is_train_dataset:
-                if not isnan(loss).any():
-                    self.engine.backward(loss)
-                    # clip_grad_norm_(self.segmentor.parameters(), max_norm=20.0)
-                    self.optimizer.step()
+                if isnan(loss).any():
+                    loss = zeros_like(loss, device=loss.device, requires_grad=True)
+                self.engine.backward(loss)
+                # clip_grad_norm_(self.segmentor.parameters(), max_norm=20.0)
+                self.optimizer.step()
                 self.optimizer.zero_grad()
         with no_grad():
             self.batch_metrics["loss"] = loss
@@ -180,6 +186,7 @@ class SegmentationExp(IExperiment):
                 ).item()
                 for k, v in self.batch_metrics.items()
             }
+        cuda.empty_cache()
 
     def run_epoch(self) -> None:
         self._run_event("on_dataset_start")
@@ -228,7 +235,6 @@ class InteractiveTest(IExperiment):
         )
 
     def _setup_model(self):
-        # TODO: pass device here to the construction of the model.
         self.predictor._setup_model(self.device)
         self.predictor.eval()
         self.predictor.to(self.device)
@@ -251,7 +257,7 @@ class InteractiveTest(IExperiment):
         self.dataset = test_loader
 
     def _setup_callbacks(self):
-        self.callbacks = {"logger": ConsoleLogger(self._cfg)}
+        self.callbacks = {"logger": ConsoleLogger(self._cfg, self)}
 
     def on_experiment_start(self, exp: "IExperiment") -> None:
         super().on_experiment_start(exp)

@@ -5,10 +5,12 @@ from warnings import warn
 
 import numpy as np
 import cv2
+from skimage.segmentation import slic
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 from torch import Tensor
+import torchvision.transforms.v2 as v2
 
 __all__ = ["SamPredictor", "RITMPredictor"]
 
@@ -45,6 +47,20 @@ class BasePredictor(nn.Module, ABC):
             Preprocessed list of prompts in the format needed by the model.
         """
         raise NotImplementedError
+
+    def propose_init_mask(
+            self, inpts: np.ndarray, prompts: Dict[str, Any]
+        ) -> np.ndarray:
+        segments_slic: np.ndarray = slic(
+            inpts,
+            n_segments=150,
+            compactness=10,
+            sigma=1,
+            start_label=1
+        )
+        pre_sp: int = segments_slic[prompts[0]["coords"][1], prompts[0]["coords"][0]]
+        segments_slic = (segments_slic == pre_sp).astype(np.int32)
+        return segments_slic
 
     def preprocess(self, inpts: np.ndarray) -> np.ndarray:
         return inpts
@@ -90,6 +106,17 @@ class SamPredictor(BasePredictor):
         sam = sam_model_registry[self.__model_size](self.__sam_checkpoint)
         self.model: SP = SP(sam.to(device))
 
+    def propose_init_mask(
+            self, inpts: np.ndarray, prompts: Dict[str, Any]
+        ) -> np.ndarray:
+        aux = super().propose_init_mask(inpts, prompts)
+        aux = v2.functional.resize(
+            torch.tensor(aux).unsqueeze(0),
+            (256, 256),
+            interpolation=v2.functional.InterpolationMode.NEAREST
+        )
+        return aux.float() + 5.
+    
     def prepare_prompts(self, prompts: List[Any]) -> Dict[str, Any]:
         """
         Prepare the prompts returned by the Sampler.
@@ -145,6 +172,15 @@ class SamPredictor(BasePredictor):
             self.model.set_image(inpts)
             self._current_id = id
 
+        if aux is None:
+            # Case were the image_id is the same but the target is different
+            if isinstance(inpts, Tensor):
+                inpts = inpts.squeeze(0).permute(1, 2, 0).numpy()
+            if inpts.max() <= 1.:
+                inpts = (inpts * 255).astype(np.uint8)
+
+            aux = self.propose_init_mask(inpts, prompts)
+
         prompts = self.prepare_prompts(prompts)
         masks, scores, logits = self.model.predict(
             **prompts, mask_input=aux, multimask_output=False
@@ -152,7 +188,7 @@ class SamPredictor(BasePredictor):
 
         # self.logger.log_metric("sam_pred_iou", scores[0])
         # Logic for returning the best mask
-        self._prev_mask = logits
+        self._prev_mask: np.ndarray = logits # (1, 256, 256)
         masks = self.postprocess(masks[0])
         
         return torch.tensor(masks, dtype=torch.uint8), logits
@@ -233,11 +269,19 @@ class RITMPredictor(BasePredictor):
         if aux is not None:
             aux = Tensor(aux).unsqueeze(0).unsqueeze(0).to(self.model.device)
         else:
-            aux = torch.zeros((1, 1, h, w), device=self.model.device)
+            # Basically if input comes from DataLoader.
+            if isinstance(inpts, Tensor):
+                inpts = inpts.squeeze(0).permute(1, 2, 0).numpy()
+            if inpts.max() <= 1.:
+                inpts = (inpts * 255).astype(np.uint8)
+
+            aux = self.propose_init_mask(inpts, prompts)
+            aux = torch.tensor(aux, device=self.model.device)[None, None, ...]
+            # aux = torch.zeros((1, 1, h, w), device=self.model.device)
 
         prompts = self.prepare_prompts(prompts)
         # By default RITM will use the previous prediction saved internally.
-        logits = self.model.get_prediction(prompts, aux)
+        logits: np.ndarray = self.model.get_prediction(prompts, aux) #(H, W)
         masks = self.postprocess(logits > self._threshold)
         return torch.tensor(masks, dtype=torch.uint8), logits
 
@@ -349,7 +393,8 @@ class IUnetPredictor(BasePredictor):
         if inpts.max() <= 1.:
             inpts = (inpts * 255).astype(np.uint8)
         if aux is None:
-            aux = np.zeros((h, w))
+            aux = self.propose_init_mask(inpts, prompts)
+            # aux = np.zeros((h, w))
 
         trimap = np.zeros((h, w, 2))
         trimap = self.prepare_prompts(prompts, trimap)

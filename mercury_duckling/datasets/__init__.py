@@ -27,12 +27,13 @@ def build_thermal(cfg: DictConfig):
         transforms = [
             v2.ToImage(),
             v2.RandomZoomOut(fill={tv_tensors.Image: (0), "others": 0}),
-            v2.RandomIoUCrop(),
-            v2.RandomHorizontalFlip(p=0.7),
+            v2.RandomIoUCrop(min_scale=0.5),
+            v2.RandomRotation((25, 90)),
+            v2.RandomHorizontalFlip(p=0.5),
             # ResizeByCoefficient(cfg.data.coeff),
             ResizeLongestSideAndPad(target_size=cfg.target_size),
-            # MinMaxNormalization(),
-            Colormap(colormap=cfg.colormap), # This will scale tp [0, 1]
+            MinMaxNormalization() if (cfg.model.args.get("in_channels", False) == 1) 
+            else Colormap(colormap=cfg.colormap),
             # StandardizeTarget(cfg.model.classes),
         ]
     else:
@@ -44,7 +45,7 @@ def build_thermal(cfg: DictConfig):
             ResizeLongestSideAndPad(target_size=cfg.target_size),
             # ResizeByCoefficient(cfg.data.coeff),
             MinMaxNormalization(),
-            Clahe(),
+            # Clahe(),
             Colormap(colormap=cfg.colormap),
         ]
     if cfg.model.type == "interactive":

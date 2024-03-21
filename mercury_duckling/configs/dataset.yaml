@@ -8,13 +8,13 @@ datasets:
     root: "../data/merged_dataset_delam_ape"
     ann_file: annotations/delamination.json
     type: rgb
-selected_data: ape
+selected_data: thermal
 data: "${datasets[${selected_data}]}"
 
 # General training data parameters
 seed: 42
-batch_size: 32
-num_epochs: 405
+batch_size: 16
+num_epochs: 241
 val_interval: 4
 num_workers: 4
 split: 0.75   # train, val
@@ -27,4 +27,4 @@ split: 0.75   # train, val
 # General transform parameters
 target_size: [256, 320] # if target is not the same size as the images
 crop_size: ${target_size} # if not used "${target_size}"
-colormap: Greys # turbo, inferno, greys
+colormap: turbo # turbo, inferno, greys
