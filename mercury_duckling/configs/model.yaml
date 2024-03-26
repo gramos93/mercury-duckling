@@ -67,11 +67,7 @@ sampler:
     
 # TRAINING PARAMS FOR SEGMENTOR MODELS
 optimizer:
-<<<<<<< HEAD
-  lr: 1e-5
-=======
   lr: 1e-4
->>>>>>> 99c6392c39e679f89ffb8e8f2a04d8060ba8eedb
   weight_decay: 0.0005
   # momentum: 0.99
 loss: 
