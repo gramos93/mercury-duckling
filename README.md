@@ -1,97 +1,97 @@
->📋  A template README.md for code accompanying a Machine Learning paper
+# Segmentation interactive pour la détection de défauts dans les images thermiques et visibles des infrastructures.
 
-# A Few-Shot Learning Approach for the Segmentation of Subsurface Defects in Thermography Images of Concrete Structures.
-
-This repository is the official implementation of [A Few-Shot Learning Approach for the Segmentation of Subsurface Defects in Thermography Images of Concrete Structures.](https://arxiv.org/abs/2030.12345).
+This repository is the official implementation of [Segmentation interactive pour la détection de défauts dans les images thermiques et visibles des infrastructures](https://arxiv.org/abs/2030.12345).
 
 ### Authors
-- **Department of Electrical Engineering, Université Laval :**
-
-    - Sandra Pozzer 
-    - Clemente Ibarra-Castanedo 
-    - Xavier Maldague
-
-- **Department of Computer Science, Université Laval :**
-  - Gabriel Ramos 
-
-- **Department of Civil Engineering, Université Laval :**
-  - Ahmed El Refai
-  
-- **Department of Architectural Science, Toronto Metropolitan University :**
-
-    - Ehsan Rezazadeh Azar
-
-- **Department of Inspection of Components and Assemblies, Fraunhofer-Institute for Non-destructive Testing IZFP :**
-  - Ahmad Osmanc
+- Gabriel Ramos, **Department of Computer Science, Université Laval :**
 
 
-- **TORNGATS Services Techniques :**
+## Setup
 
-    - Fernando López
-
-### Abstract
-
-> The identification and categorization of subsurface damages in thermal images of concrete structures remain an actual challenge that demands expert knowledge. Consequently, creating a substantial number of annotated samples for training deep neural networks poses a significant issue. Artificial intelligence (AI) models particularly encounter the problem of false positives arising from thermal patterns on concrete surfaces that do not correspond to subsurface damages. Such false detections would be easily identifiable in regular images, underscoring the advantage of possessing additional information about the sample surface through optical imaging. In light of these challenges, this study proposes an approach that employs a few-shot learning method known as the Siamese Neural Network (SNN), to frame the problem of subsurface delamination detection in concrete structures as a multi-modal similarity region comparison problem. The proposed procedure is evaluated using a dataset comprising 500 registered pairs of infrared and visible images captured in various infrastructure scenarios. Our findings indicate that leveraging prior knowledge regarding the similarity between visible and thermal data can significantly reduce the rate of false positive detection by AI models in thermal images.
-
->📋  Optional: include a graphic explaining your approach/main result, bibtex entry, link to demos, blog posts and tutorials
-
-## Requirements
-
-To install requirements:
+1. To install Python requirements:
 
 ```setup
 pip install -r requirements.txt
 ```
 
->📋  Describe how to set up the environment, e.g. pip/conda/docker commands, download datasets, etc...
+2. Clone IUnet and RITM repos inside the project root folder
 
-## Training
-
-To train the model(s) in the paper, run this command:
-
-```train
-python train.py --input-data <path_to_data> --alpha 10 --beta 20
+```git
+cd mercury-duckling
+git clone https://github.com/SamsungLabs/ritm_interactive_segmentation.git
+git clone https://github.com/MarcoForte/DeepInteractiveSegmentation.git
 ```
 
->📋  Describe how to train the models, with example commands on how to train the models in your paper, including the full training procedure and appropriate hyperparameters.
+3. Download model weights from their respective repos.
+
+4. Prepare datasets in MSCOCO format.
+
+5. Build Enhanced CLAHE Cython library
+
+```bash
+cd mercury_duckling/datasets/enhancement/
+python setup_clahe.py build
+mv build/lib.linux-x86_64-cpython-311/clahe* ../clahe.so
+```
 
 ## Evaluation
 
-To evaluate my model on ImageNet, run:
+To evaluate models on a dataset, first modify the YAML config files and then run:
 
 ```eval
-python eval.py --model-file mymodel.pth --benchmark imagenet
+python run.py --model <model-name> --dataset <thermal, ape, concrete>  --mode <train, test>
 ```
 
->📋  Describe how to evaluate the trained models on benchmarks reported in the paper, give commands that produce the results (section below).
-
-## Pre-trained Models
-
-You can download pretrained models here:
-
-- [My awesome model](https://drive.google.com/mymodel.pth) trained on ImageNet using parameters x,y,z. 
-
->📋  Give a link to where/how the pretrained models can be downloaded and how they were trained (if applicable).  Alternatively you can have an additional column in your results table with a link to the models.
+> Interactive model do not support training yet!
 
 ## Results
 
-Our model achieves the following performance on :
+### Semantic Segmentation Models (temperature input):
 
-### [Image Classification on ImageNet](https://paperswithcode.com/sota/image-classification-on-imagenet)
+|            |  Mesure F1   |            |     IoU      |            |
+| ---------- | :----------: | :--------: | :----------: | :--------: |
+| Modèle     | Entraînement | Validation | Entraînement | Validation |
+| SegFormer  |    0.786     | **0.594**  |    0.651     | **0.426**  |
+| FPN        |  **0.853**   |   0.572    |  **0.747**   |   0.403    |
+| Unet++     |  **0.854**   |   0.561    |  **0.747**   |   0.393    |
+| Unet       |    0.820     |   0.553    |    0.696     |   0.386    |
+| DeepLabV3+ |    0.797     |   0.531    |    0.664     |   0.364    |
+| DeepLabV3  |    0.793     |   0.538    |    0.660     |   0.370    |
+|            |
 
-| Model name         | Top 1 Accuracy  | Top 5 Accuracy |
-| ------------------ |---------------- | -------------- |
-| My awesome model   |     85%         |      95%       |
+### Semantic Segmentation Models (RGB input [APE]):
 
->📋  Include a table of results from your paper, and link back to the leaderboard for clarity and context. If your main result is a figure, include that figure and link to the command or notebook to reproduce it. 
+|            |  Mesure F1   |            |           |     IoU      |            |           |
+| ---------- | :----------: | :--------: | --------- | :----------: | :--------: | --------- |
+| Modèle     | Entraînement | Validation |           | Entraînement | Validation |           |
+| SegFormer  |    0.897     |   0.652    | (↑ 5.8%)  |    0.816     |   0.486    | (↑ 6.0%)  |
+| FPN        |    0.845     |   0.620    | (↑ 4.8%)  |    0.732     |   0.451    | (↑ 4.8%)  |
+| Unet++     |  **0.910**   |   0.691    | (↑ 13.0%) |  **0.836**   |   0.528    | (↑ 13.5%) |
+| Unet       |    0.658     |   0.507    | (↓ 4.6%)  |    0.493     |   0.341    | (↓ 4.5%)  |
+| DeepLabV3+ |    0.891     | **0.696**  | (↑ 16.5%) |    0.804     | **0.535**  | (↑ 17.1%) |
+| DeepLabV3  |    0.887     |   0.680    | (↑ 14.2%) |    0.797     |   0.517    | (↑ 14.7%) |
+|            |
 
+### Base Semantic Interactive Segmentation:
+
+|                  |        | NOC<sub>0.75</sub> |       |   |           | IoU<sub>max</sub> |           |
+|------------------|:------:|:------------------:|:-----:|:-:|:---------:|-------------------|:---------:|
+| Modèle \ Palette |  Turbo |       Inferno      | Greys |   |   Turbo   |      Inferno      |   Greys   |
+| SAM              | **10** |       **10**       | **9** |   |   0.804   |       0.801       |   0.806   |
+| RITM             |   13   |         13         |   12  |   |   0.784   |       0.777       |   0.780   |
+| ISS-FT           |   15   |         14         |   13  |   | **0.814** |     **0.822**     | **0.827** |
+
+### Proposed Interactive Segmentation Framework:
+
+|                  |             | NOC<sub>0.75</sub> |            |       |   |           |           | IoU<sub>max</sub> |           |
+|------------------|:-----------:|:------------------:|:----------:|:-----:|---|:---------:|:---------:|:-----------------:|:---------:|
+| Modèle \ Palette |    Turbo    |       Inferno      |    Greys   |  APE  |   |   Turbo   |  Inferno  |       Greys       |    APE    |
+| SAM              | **8  (-2)** |       9 (-1)       |    9 (-)   | **8** |   |   0.810   |   0.807   |       0.809       |   0.825   |
+| RITM             | **8  (-5)** |     **8 (-5)**     | **7 (-5)** | **8** |   |   0.796   |   0.804   |       0.791       |   0.805   |
+| ISS-FT           |   12 (-3)   |       12 (-2)      |   10 (-3)  |   12  |   | **0.832** | **0.835** |     **0.838**     | **0.840** |
 
 ## Cite
 
 ```
 
 ```
-
-## Contributing
-
->📋  Pick a licence and describe how to contribute to your code repository. 

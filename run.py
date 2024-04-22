@@ -24,7 +24,7 @@ def add_dir(x):
 @click.option(
     "--model",
     default=None,
-    help="Specify the model to use. One of [`sam`, `ritm`, `iunet`].",
+    help="Specify the model to use.",
 )
 @click.option(
     "--dataset",
