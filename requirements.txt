@@ -27,4 +27,4 @@ setuptools>=70.0.0
 skimage==0.0
 torch==2.2.0
 torchvision==0.16.2
-tqdm==4.66.1
+tqdm>=4.66.3
