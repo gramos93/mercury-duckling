@@ -1,6 +1,6 @@
 # Segmentation interactive pour la détection de défauts dans les images thermiques et visibles des infrastructures.
 
-This repository is the official implementation of [Segmentation interactive pour la détection de défauts dans les images thermiques et visibles des infrastructures](https://arxiv.org/abs/2030.12345).
+This repository is the official implementation of [Segmentation interactive pour la détection de défauts dans les images thermiques et visibles des infrastructures](assets/MIIA_A23_Rapport_Final.pdf)
 
 ### Authors
 - Gabriel Ramos, **Department of Computer Science, Université Laval :**
